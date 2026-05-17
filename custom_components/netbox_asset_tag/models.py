@@ -66,6 +66,7 @@ class NetBoxInventory:
 
     devices: dict[int, NetBoxDeviceRecord]
     identifier_to_device_id: dict[str, int]
+    identifier_to_match_method: dict[str, str]
     duplicate_identifiers: set[str]
 
 
@@ -82,3 +83,4 @@ class HomeAssistantDeviceMatch:
     netbox_display: str
     netbox_url: str
     matched_identifiers: tuple[str, ...]
+    match_methods: tuple[str, ...]

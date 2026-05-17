@@ -8,7 +8,14 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import ATTR_MATCHED_IDENTIFIERS, ATTR_NETBOX_DEVICE_ID, ATTR_NETBOX_URL, DOMAIN
+from .const import (
+    ATTR_MATCHED_IDENTIFIERS,
+    ATTR_MATCH_METHODS,
+    ATTR_NETBOX_DEVICE_ID,
+    ATTR_NETBOX_URL,
+    ATTR_PRIMARY_MATCH_METHOD,
+    DOMAIN,
+)
 from .coordinator import NetBoxAssetTagCoordinator
 from .entity import NetBoxAssetTagEntity
 from .registry import get_asset_tag_unique_id
@@ -100,5 +107,6 @@ class NetBoxAssetTagSensor(NetBoxAssetTagEntity, SensorEntity):
             ATTR_NETBOX_URL: match.netbox_url,
             ATTR_NETBOX_DEVICE_ID: match.netbox_device_id,
             ATTR_MATCHED_IDENTIFIERS: list(match.matched_identifiers),
+            ATTR_MATCH_METHODS: list(match.match_methods),
+            ATTR_PRIMARY_MATCH_METHOD: match.match_methods[0] if match.match_methods else None,
         }
-

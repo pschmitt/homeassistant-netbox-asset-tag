@@ -19,6 +19,7 @@ API_DEVICES_PATH = "/api/dcim/devices/"
 API_INTERFACES_PATH = "/api/dcim/interfaces/"
 
 ATTR_MATCHED_IDENTIFIERS = "matched_identifiers"
+ATTR_MATCH_METHODS = "match_methods"
+ATTR_PRIMARY_MATCH_METHOD = "primary_match_method"
 ATTR_NETBOX_DEVICE_ID = "netbox_device_id"
 ATTR_NETBOX_URL = "netbox_url"
-

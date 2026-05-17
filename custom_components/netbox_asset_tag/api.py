@@ -91,18 +91,50 @@ class NetBoxApiClient:
                 candidates[mac_address].add(int(device_id))
 
         identifier_to_device_id: dict[str, int] = {}
+        identifier_to_match_method: dict[str, str] = {}
         duplicate_identifiers: set[str] = set()
         for identifier, device_ids in candidates.items():
             if len(device_ids) != 1:
                 duplicate_identifiers.add(identifier)
                 continue
             identifier_to_device_id[identifier] = next(iter(device_ids))
+            identifier_to_match_method[identifier] = self._match_method_for_identifier(
+                identifier,
+                devices,
+                interfaces_payload,
+            )
 
         return NetBoxInventory(
             devices=devices,
             identifier_to_device_id=identifier_to_device_id,
+            identifier_to_match_method=identifier_to_match_method,
             duplicate_identifiers=duplicate_identifiers,
         )
+
+    @staticmethod
+    def _match_method_for_identifier(
+        identifier: str,
+        devices: dict[int, NetBoxDeviceRecord],
+        interfaces_payload: list[dict[str, Any]],
+    ) -> str:
+        """Return the match method for one resolved identifier."""
+        for device in devices.values():
+            if device.serial == identifier:
+                return "serial"
+            if device.zigbee_ieee == identifier:
+                return "zigbee"
+            if device.thread_eui64 == identifier:
+                return "thread"
+
+        for item in interfaces_payload:
+            device = item.get("device") or {}
+            device_id = device.get("id")
+            if device_id is None or int(device_id) not in devices:
+                continue
+            if normalize_identifier(item.get("mac_address")) == identifier:
+                return "mac"
+
+        return "identifier"
 
     async def _async_fetch_devices_and_interfaces(
         self,

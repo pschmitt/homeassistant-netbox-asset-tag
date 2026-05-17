@@ -115,6 +115,15 @@ def _match_device(
             if inventory.identifier_to_device_id.get(identifier) == netbox_device_id
         )
     )
+    match_methods = tuple(
+        sorted(
+            {
+                inventory.identifier_to_match_method[identifier]
+                for identifier in matched_identifiers
+                if identifier in inventory.identifier_to_match_method
+            }
+        )
+    )
 
     return HomeAssistantDeviceMatch(
         ha_device_id=device_entry.id,
@@ -126,6 +135,7 @@ def _match_device(
         netbox_display=netbox_device.display,
         netbox_url=netbox_device.display_url,
         matched_identifiers=matched_identifiers,
+        match_methods=match_methods,
     )
 
 
