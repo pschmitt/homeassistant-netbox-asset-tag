@@ -19,16 +19,16 @@ class NetBoxAssetTagEntity(CoordinatorEntity[NetBoxAssetTagCoordinator]):
     def __init__(
         self,
         coordinator: NetBoxAssetTagCoordinator,
-        ha_device_id: str,
+        attached_device_key: str,
     ) -> None:
         """Initialize the entity."""
         super().__init__(coordinator)
-        self._ha_device_id = ha_device_id
+        self._attached_device_key = attached_device_key
 
     @property
     def matched_device(self) -> HomeAssistantDeviceMatch | None:
         """Return the current matched device payload."""
-        return self.coordinator.data.get(self._ha_device_id)
+        return self.coordinator.data.get(self._attached_device_key)
 
     @property
     def available(self) -> bool:

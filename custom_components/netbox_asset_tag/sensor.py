@@ -38,10 +38,10 @@ async def async_setup_entry(
         current_unique_ids: set[str] = set()
         new_entities: list[NetBoxAssetTagSensor] = []
 
-        for match in coordinator.data.values():
+        for attached_device_key, match in coordinator.data.items():
             entity_unique_id = get_asset_tag_unique_id(
                 config_entry.entry_id,
-                match.ha_device_id,
+                attached_device_key,
             )
             current_unique_ids.add(entity_unique_id)
             if entity_unique_id in known_entities:
@@ -51,7 +51,7 @@ async def async_setup_entry(
             new_entities.append(
                 NetBoxAssetTagSensor(
                     coordinator=coordinator,
-                    ha_device_id=match.ha_device_id,
+                    attached_device_key=attached_device_key,
                     unique_id=entity_unique_id,
                 )
             )
@@ -77,11 +77,11 @@ class NetBoxAssetTagSensor(NetBoxAssetTagEntity, SensorEntity):
     def __init__(
         self,
         coordinator: NetBoxAssetTagCoordinator,
-        ha_device_id: str,
+        attached_device_key: str,
         unique_id: str,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, ha_device_id)
+        super().__init__(coordinator, attached_device_key)
         self._attr_unique_id = unique_id
 
     @property

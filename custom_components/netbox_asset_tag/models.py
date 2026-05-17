@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from typing import TypeAlias
 
@@ -46,6 +48,28 @@ def normalize_serial(value: str | None) -> str | None:
     return normalized
 
 
+def get_attached_device_key(
+    identifiers: tuple[RegistryEntry, ...],
+    connections: tuple[RegistryEntry, ...],
+    fallback_device_id: str,
+) -> str:
+    """Return a stable key for the HA device the entity attaches to."""
+    exact_identifiers = tuple(sorted(entry for entry in identifiers if len(entry) == 2))
+    exact_connections = tuple(sorted(entry for entry in connections if len(entry) == 2))
+    if not exact_identifiers and not exact_connections:
+        return fallback_device_id
+
+    payload = json.dumps(
+        {
+            "connections": exact_connections,
+            "identifiers": exact_identifiers,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha1(payload.encode(), usedforsecurity=False).hexdigest()
+
+
 @dataclass(slots=True, frozen=True)
 class NetBoxDeviceRecord:
     """One normalized NetBox device."""
@@ -75,6 +99,7 @@ class HomeAssistantDeviceMatch:
     """One Home Assistant device matched to a NetBox device."""
 
     ha_device_id: str
+    attached_device_key: str
     ha_device_name: str
     ha_identifiers: tuple[RegistryEntry, ...]
     ha_connections: tuple[RegistryEntry, ...]

@@ -26,6 +26,7 @@ from .models import (
     HomeAssistantDeviceMatch,
     NetBoxInventory,
     RegistryEntry,
+    get_attached_device_key,
     normalize_identifier,
     normalize_serial,
 )
@@ -190,6 +191,8 @@ def _match_device(
         weak_match = True
 
     netbox_device = inventory.devices[netbox_device_id]
+    frozen_identifiers = _freeze_registry_entries(device_entry.identifiers)
+    frozen_connections = _freeze_registry_entries(device_entry.connections)
     candidate_identifiers = strong_identifiers | weak_identifiers
     matched_identifiers = tuple(
         sorted(
@@ -210,9 +213,14 @@ def _match_device(
 
     return HomeAssistantDeviceMatch(
         ha_device_id=device_entry.id,
+        attached_device_key=get_attached_device_key(
+            frozen_identifiers,
+            frozen_connections,
+            device_entry.id,
+        ),
         ha_device_name=device_entry.name_by_user or device_entry.name or device_entry.id,
-        ha_identifiers=_freeze_registry_entries(device_entry.identifiers),
-        ha_connections=_freeze_registry_entries(device_entry.connections),
+        ha_identifiers=frozen_identifiers,
+        ha_connections=frozen_connections,
         netbox_device_id=netbox_device.device_id,
         netbox_asset_tag=netbox_device.asset_tag,
         netbox_display=netbox_device.display,
@@ -275,6 +283,21 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
             )
             if match is None:
                 continue
-            matches[device_entry.id] = match
+            existing_match = matches.get(match.attached_device_key)
+            if existing_match is None:
+                matches[match.attached_device_key] = match
+                continue
+
+            if existing_match.netbox_device_id == match.netbox_device_id:
+                if len(match.matched_identifiers) > len(existing_match.matched_identifiers):
+                    matches[match.attached_device_key] = match
+                continue
+
+            _LOGGER.warning(
+                "Skipping conflicting NetBox matches for Home Assistant device key %s: %s vs %s",
+                match.attached_device_key,
+                existing_match.netbox_device_id,
+                match.netbox_device_id,
+            )
 
         return matches
