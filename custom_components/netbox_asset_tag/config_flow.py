@@ -24,7 +24,9 @@ from homeassistant.helpers.selector import (
 
 from .api import NetBoxApiClient, normalize_url
 from .const import (
+    CONF_ENABLE_WEAK_MATCHING,
     CONF_VERIFY_SSL,
+    DEFAULT_ENABLE_WEAK_MATCHING,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
@@ -93,7 +95,10 @@ class NetBoxAssetTagConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_TOKEN: user_input[CONF_TOKEN],
                     CONF_VERIFY_SSL: user_input[CONF_VERIFY_SSL],
                 }
-                options = {CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL}
+                options = {
+                    CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
+                    CONF_ENABLE_WEAK_MATCHING: DEFAULT_ENABLE_WEAK_MATCHING,
+                }
                 title = user_input.get(CONF_NAME) or info["title"]
                 return self.async_create_entry(title=title, data=data, options=options)
 
@@ -148,7 +153,13 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
                             step=1,
                         )
                     ),
+                    vol.Required(
+                        CONF_ENABLE_WEAK_MATCHING,
+                        default=self._config_entry.options.get(
+                            CONF_ENABLE_WEAK_MATCHING,
+                            DEFAULT_ENABLE_WEAK_MATCHING,
+                        ),
+                    ): BooleanSelector(),
                 }
             ),
         )
-

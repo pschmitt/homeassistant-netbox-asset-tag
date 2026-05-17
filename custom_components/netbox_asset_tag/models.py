@@ -84,3 +84,4 @@ class HomeAssistantDeviceMatch:
     netbox_url: str
     matched_identifiers: tuple[str, ...]
     match_methods: tuple[str, ...]
+    weak_match: bool

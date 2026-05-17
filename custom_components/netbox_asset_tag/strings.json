@@ -26,10 +26,10 @@
       "init": {
         "title": "NetBox Asset Tag options",
         "data": {
-          "scan_interval": "Update interval in seconds"
+          "scan_interval": "Update interval in seconds",
+          "enable_weak_matching": "Enable weaker serial matching from raw integration identifiers"
         }
       }
     }
   }
 }
-

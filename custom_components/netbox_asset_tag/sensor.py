@@ -14,6 +14,7 @@ from .const import (
     ATTR_NETBOX_DEVICE_ID,
     ATTR_NETBOX_URL,
     ATTR_PRIMARY_MATCH_METHOD,
+    ATTR_WEAK_MATCH,
     DOMAIN,
 )
 from .coordinator import NetBoxAssetTagCoordinator
@@ -97,7 +98,7 @@ class NetBoxAssetTagSensor(NetBoxAssetTagEntity, SensorEntity):
         return match.netbox_asset_tag
 
     @property
-    def extra_state_attributes(self) -> dict[str, str | int | list[str]]:
+    def extra_state_attributes(self) -> dict[str, str | int | bool | list[str] | None]:
         """Return extra attributes for the matched NetBox device."""
         match = self.matched_device
         if match is None:
@@ -109,4 +110,5 @@ class NetBoxAssetTagSensor(NetBoxAssetTagEntity, SensorEntity):
             ATTR_MATCHED_IDENTIFIERS: list(match.matched_identifiers),
             ATTR_MATCH_METHODS: list(match.match_methods),
             ATTR_PRIMARY_MATCH_METHOD: match.match_methods[0] if match.match_methods else None,
+            ATTR_WEAK_MATCH: match.weak_match,
         }

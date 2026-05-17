@@ -15,6 +15,7 @@ The integration matches Home Assistant devices against NetBox using normalized h
 
 - Home Assistant device `connections`: `mac`, `bluetooth`, `zigbee`
 - Home Assistant device `identifiers`: values such as `zha` IEEE addresses and other EUI-like identifiers
+- Home Assistant device `identifiers`: serial-like raw integration identifiers as a weaker fallback when no strict hardware identifier match exists
 - NetBox device custom fields:
   - `zigbee_ieee`
   - `thread_eui64`
@@ -46,6 +47,7 @@ The integration is configured from the Home Assistant UI:
 1. Go to **Settings -> Devices & services**.
 2. Add **NetBox Asset Tag**.
 3. Enter the NetBox URL and API token.
+4. Optionally enable **weaker serial matching from raw integration identifiers** in the integration options if you want it to consider integration-specific device IDs.
 
 ## Entity model
 
@@ -56,4 +58,6 @@ The integration is configured from the Home Assistant UI:
   - `netbox_url`
   - `netbox_device_id`
   - `matched_identifiers`
-
+  - `match_methods`
+  - `primary_match_method`
+  - `weak_match`

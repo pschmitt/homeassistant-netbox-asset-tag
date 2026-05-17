@@ -15,7 +15,12 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import NetBoxApiClient
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    CONF_ENABLE_WEAK_MATCHING,
+    DEFAULT_ENABLE_WEAK_MATCHING,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
 from .exceptions import NetBoxApiError, NetBoxAuthenticationError
 from .models import (
     HomeAssistantDeviceMatch,
@@ -29,6 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 _SEPARATED_IDENTIFIER_RE = re.compile(
     r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}[:-]){5,7}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])"
 )
+_SERIAL_TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,}")
 _WHOLE_IDENTIFIER_RE = re.compile(r"^[0-9A-Fa-f]{12}(?:[0-9A-Fa-f]{4})?$")
 
 
@@ -68,6 +74,55 @@ def _iter_registry_entry_values(entries: Any) -> set[str]:
     return values
 
 
+def _iter_registry_raw_values(entries: Any) -> set[str]:
+    """Return raw string values from registry entries of varying lengths."""
+    values: set[str] = set()
+    for entry in entries or ():
+        if not isinstance(entry, (list, tuple)):
+            if entry is not None:
+                values.add(str(entry))
+            continue
+        for value in entry[1:]:
+            if value is not None:
+                values.add(str(value))
+    return values
+
+
+def _looks_like_serial_candidate(value: str) -> bool:
+    """Return True when a raw value looks like a device serial."""
+    normalized = normalize_serial(value)
+    if normalized is None or len(normalized) < 8:
+        return False
+    return any(character.isalpha() for character in normalized) and any(
+        character.isdigit() for character in normalized
+    )
+
+
+def _extract_serial_candidates(value: Any) -> set[str]:
+    """Extract serial-like identifiers from raw registry values."""
+    if value is None:
+        return set()
+
+    stripped = str(value).strip()
+    if not stripped:
+        return set()
+
+    matches: set[str] = set()
+    if _looks_like_serial_candidate(stripped):
+        normalized = normalize_serial(stripped)
+        if normalized:
+            matches.add(normalized)
+
+    for candidate in _SERIAL_TOKEN_RE.findall(stripped):
+        if not _looks_like_serial_candidate(candidate):
+            continue
+        normalized = normalize_serial(candidate)
+        if normalized:
+            matches.add(normalized)
+
+    return matches
+
+
 def _freeze_registry_entries(entries: Any) -> tuple[RegistryEntry, ...]:
     """Return registry entries as stable string tuples."""
     frozen_entries: list[RegistryEntry] = []
@@ -89,25 +144,53 @@ def _collect_ha_identifiers(device_entry: dr.DeviceEntry) -> set[str]:
     return identifiers
 
 
+def _collect_weak_ha_identifiers(device_entry: dr.DeviceEntry) -> set[str]:
+    """Collect weaker serial-like identifiers from raw Home Assistant values."""
+    identifiers: set[str] = set()
+    for value in _iter_registry_raw_values(device_entry.identifiers):
+        identifiers.update(_extract_serial_candidates(value))
+    return identifiers
+
+
 def _match_device(
     device_entry: dr.DeviceEntry,
     inventory: NetBoxInventory,
+    *,
+    enable_weak_matching: bool,
 ) -> HomeAssistantDeviceMatch | None:
     """Match one Home Assistant device against the NetBox inventory."""
-    candidate_identifiers = _collect_ha_identifiers(device_entry)
-    if not candidate_identifiers:
+    strong_identifiers = _collect_ha_identifiers(device_entry)
+    weak_identifiers = set()
+    if enable_weak_matching:
+        weak_identifiers = _collect_weak_ha_identifiers(device_entry) - strong_identifiers
+
+    if not strong_identifiers and not weak_identifiers:
         return None
 
-    matched_device_ids = {
+    strong_device_ids = {
         inventory.identifier_to_device_id[identifier]
-        for identifier in candidate_identifiers
+        for identifier in strong_identifiers
         if identifier in inventory.identifier_to_device_id
     }
-    if len(matched_device_ids) != 1:
+    if len(strong_device_ids) > 1:
         return None
 
-    netbox_device_id = next(iter(matched_device_ids))
+    if len(strong_device_ids) == 1:
+        netbox_device_id = next(iter(strong_device_ids))
+        weak_match = False
+    else:
+        weak_device_ids = {
+            inventory.identifier_to_device_id[identifier]
+            for identifier in weak_identifiers
+            if identifier in inventory.identifier_to_device_id
+        }
+        if len(weak_device_ids) != 1:
+            return None
+        netbox_device_id = next(iter(weak_device_ids))
+        weak_match = True
+
     netbox_device = inventory.devices[netbox_device_id]
+    candidate_identifiers = strong_identifiers | weak_identifiers
     matched_identifiers = tuple(
         sorted(
             identifier
@@ -136,6 +219,7 @@ def _match_device(
         netbox_url=netbox_device.display_url,
         matched_identifiers=matched_identifiers,
         match_methods=match_methods,
+        weak_match=weak_match,
     )
 
 
@@ -181,7 +265,14 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
         matches: dict[str, HomeAssistantDeviceMatch] = {}
 
         for device_entry in device_registry.devices.values():
-            match = _match_device(device_entry, inventory)
+            match = _match_device(
+                device_entry,
+                inventory,
+                enable_weak_matching=self.config_entry.options.get(
+                    CONF_ENABLE_WEAK_MATCHING,
+                    DEFAULT_ENABLE_WEAK_MATCHING,
+                ),
+            )
             if match is None:
                 continue
             matches[device_entry.id] = match
