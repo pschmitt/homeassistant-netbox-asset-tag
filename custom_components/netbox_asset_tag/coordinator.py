@@ -22,6 +22,7 @@ from .models import (
     NetBoxInventory,
     RegistryEntry,
     normalize_identifier,
+    normalize_serial,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -82,6 +83,9 @@ def _collect_ha_identifiers(device_entry: dr.DeviceEntry) -> set[str]:
     identifiers: set[str] = set()
     identifiers.update(_iter_registry_entry_values(device_entry.connections))
     identifiers.update(_iter_registry_entry_values(device_entry.identifiers))
+    serial_number = normalize_serial(device_entry.serial_number)
+    if serial_number:
+        identifiers.add(serial_number)
     return identifiers
 
 

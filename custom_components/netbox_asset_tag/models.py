@@ -35,6 +35,17 @@ def normalize_identifier(value: str | None) -> str | None:
     return ":".join(part.lower() for part in parts)
 
 
+def normalize_serial(value: str | None) -> str | None:
+    """Normalize a serial number for matching."""
+    if not value:
+        return None
+
+    normalized = "".join(character for character in value.strip().upper() if not character.isspace())
+    if not normalized:
+        return None
+    return normalized
+
+
 @dataclass(slots=True, frozen=True)
 class NetBoxDeviceRecord:
     """One normalized NetBox device."""
@@ -44,6 +55,7 @@ class NetBoxDeviceRecord:
     display: str
     asset_tag: str
     display_url: str
+    serial: str | None
     zigbee_ieee: str | None
     thread_eui64: str | None
 

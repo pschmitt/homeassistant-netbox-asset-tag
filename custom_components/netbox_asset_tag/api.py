@@ -16,7 +16,12 @@ from .const import (
     DEFAULT_REQUEST_TIMEOUT,
 )
 from .exceptions import NetBoxApiError, NetBoxAuthenticationError
-from .models import NetBoxDeviceRecord, NetBoxInventory, normalize_identifier
+from .models import (
+    NetBoxDeviceRecord,
+    NetBoxInventory,
+    normalize_identifier,
+    normalize_serial,
+)
 
 
 def normalize_url(url: str) -> str:
@@ -65,12 +70,13 @@ class NetBoxApiClient:
                 display=item.get("display") or item.get("name") or str(item["id"]),
                 asset_tag=asset_tag,
                 display_url=display_url,
+                serial=normalize_serial(item.get("serial")),
                 zigbee_ieee=normalize_identifier(custom_fields.get("zigbee_ieee")),
                 thread_eui64=normalize_identifier(custom_fields.get("thread_eui64")),
             )
             devices[record.device_id] = record
 
-            for identifier in (record.zigbee_ieee, record.thread_eui64):
+            for identifier in (record.serial, record.zigbee_ieee, record.thread_eui64):
                 if identifier:
                     candidates[identifier].add(record.device_id)
 
