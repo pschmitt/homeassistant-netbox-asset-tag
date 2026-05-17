@@ -1,0 +1,24 @@
+"""Constants for NetBox Asset Tag."""
+
+from __future__ import annotations
+
+from homeassistant.const import Platform
+
+DOMAIN = "netbox_asset_tag"
+PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+CONF_VERIFY_SSL = "verify_ssl"
+
+DEFAULT_SCAN_INTERVAL = 1800
+MIN_SCAN_INTERVAL = 300
+DEFAULT_VERIFY_SSL = True
+
+DEFAULT_REQUEST_TIMEOUT = 20
+API_PAGE_SIZE = 250
+API_DEVICES_PATH = "/api/dcim/devices/"
+API_INTERFACES_PATH = "/api/dcim/interfaces/"
+
+ATTR_MATCHED_IDENTIFIERS = "matched_identifiers"
+ATTR_NETBOX_DEVICE_ID = "netbox_device_id"
+ATTR_NETBOX_URL = "netbox_url"
+

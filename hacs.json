@@ -1,0 +1,9 @@
+{
+  "name": "NetBox Asset Tag",
+  "domains": [
+    "netbox_asset_tag"
+  ],
+  "homeassistant": "2025.1.0",
+  "render_readme": true
+}
+

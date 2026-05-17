@@ -1,0 +1,17 @@
+{
+  "domain": "netbox_asset_tag",
+  "name": "NetBox Asset Tag",
+  "codeowners": [
+    "@pschmitt"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/pschmitt/homeassistant-netbox-asset-tag",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/pschmitt/homeassistant-netbox-asset-tag/issues",
+  "loggers": [
+    "custom_components.netbox_asset_tag"
+  ],
+  "version": "0.1.0"
+}
+

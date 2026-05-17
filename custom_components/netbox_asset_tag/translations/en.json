@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add NetBox Asset Tag",
+        "description": "Connect Home Assistant to NetBox for device asset-tag enrichment.",
+        "data": {
+          "url": "NetBox URL",
+          "name": "Name",
+          "token": "API token",
+          "verify_ssl": "Verify SSL certificate"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to NetBox.",
+      "invalid_auth": "Invalid API token.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This NetBox instance is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "NetBox Asset Tag options",
+        "data": {
+          "scan_interval": "Update interval in seconds"
+        }
+      }
+    }
+  }
+}
