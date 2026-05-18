@@ -170,31 +170,24 @@ def _parse_matter_node_id(identifier_value: str) -> int | None:
 async def _async_get_matter_mac(hass: HomeAssistant, node_id: int) -> str | None:
     """Return the normalized Thread/WiFi MAC for a Matter node via the Matter integration."""
     try:
-        from homeassistant.components.matter import DOMAIN as _MATTER_DOMAIN  # noqa: PLC0415
+        from homeassistant.components.matter.helpers import get_matter  # noqa: PLC0415
     except ImportError:
         return None
 
-    matter_data = hass.data.get(_MATTER_DOMAIN)
-    if not matter_data:
+    try:
+        matter = get_matter(hass)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Matter adapter not available: %s", err)
         return None
 
     try:
-        items = list(matter_data.values())
-    except AttributeError:
-        items = [matter_data]
+        result = await matter.matter_client.node_diagnostics(node_id)
+        mac = getattr(result, "mac_address", None)
+        if mac:
+            return normalize_identifier(mac)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Matter node_diagnostics failed for node %d: %s", node_id, err)
 
-    for entry_data in items:
-        client = getattr(entry_data, "client", None)
-        if client is None:
-            continue
-        try:
-            result = await client.node_diagnostics(node_id)
-            mac = getattr(result, "mac_address", None)
-            if mac:
-                return normalize_identifier(mac)
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Matter node_diagnostics failed for node %d: %s", node_id, err)
-            continue
     return None
 
 
