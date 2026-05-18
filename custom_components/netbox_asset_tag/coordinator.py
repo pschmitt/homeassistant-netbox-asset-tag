@@ -188,16 +188,12 @@ async def _async_get_matter_mac(hass: HomeAssistant, node_id: int) -> str | None
         if client is None:
             continue
         try:
-            result = await client.send_command("get_node_diagnostics", node_id=node_id)
-            mac = (
-                result.get("mac_address")
-                if isinstance(result, dict)
-                else getattr(result, "mac_address", None)
-            )
+            result = await client.node_diagnostics(node_id)
+            mac = getattr(result, "mac_address", None)
             if mac:
                 return normalize_identifier(mac)
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Matter get_node_diagnostics failed for node %d: %s", node_id, err)
+            _LOGGER.debug("Matter node_diagnostics failed for node %d: %s", node_id, err)
             continue
     return None
 
