@@ -178,7 +178,12 @@ async def _async_get_matter_mac(hass: HomeAssistant, node_id: int) -> str | None
     if not matter_data:
         return None
 
-    for entry_data in matter_data.values():
+    try:
+        items = list(matter_data.values())
+    except AttributeError:
+        items = [matter_data]
+
+    for entry_data in items:
         client = getattr(entry_data, "client", None)
         if client is None:
             continue
@@ -191,8 +196,8 @@ async def _async_get_matter_mac(hass: HomeAssistant, node_id: int) -> str | None
             )
             if mac:
                 return normalize_identifier(mac)
-        except Exception:  # noqa: BLE001
-            _LOGGER.debug("Matter get_node_diagnostics failed for node %d", node_id)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Matter get_node_diagnostics failed for node %d: %s", node_id, err)
             continue
     return None
 

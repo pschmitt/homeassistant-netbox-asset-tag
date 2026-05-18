@@ -6,7 +6,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_TOKEN, CONF_URL
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 from .api import NetBoxApiClient
@@ -51,6 +51,20 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     config_entry.async_on_unload(coordinator.async_add_listener(async_cleanup_listener))
     config_entry.async_on_unload(config_entry.add_update_listener(async_update_listener))
+
+    @callback
+    def _on_component_loaded(event: Event) -> None:
+        if event.data.get("component") == "matter":
+            config_entry.async_create_background_task(
+                hass,
+                coordinator.async_request_refresh(),
+                "netbox_asset_tag_matter_refresh",
+            )
+
+    config_entry.async_on_unload(
+        hass.bus.async_listen("component_loaded", _on_component_loaded)
+    )
+
     return True
 
 
