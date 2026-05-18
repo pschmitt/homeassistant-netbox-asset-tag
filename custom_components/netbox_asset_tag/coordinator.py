@@ -321,10 +321,12 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
 
         for device_entry in device_registry.devices.values():
             extra_ids: set[str] = set()
-            for id_type, id_val in device_entry.identifiers:
-                if id_type != "matter":
+            for entry in device_entry.identifiers:
+                if not isinstance(entry, (list, tuple)) or len(entry) < 2:
                     continue
-                node_id = _parse_matter_node_id(id_val)
+                if entry[0] != "matter":
+                    continue
+                node_id = _parse_matter_node_id(entry[1])
                 if node_id is None:
                     continue
                 mac = await _async_get_matter_mac(self.hass, node_id)
