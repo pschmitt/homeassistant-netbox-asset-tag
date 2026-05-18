@@ -37,6 +37,9 @@ _SEPARATED_IDENTIFIER_RE = re.compile(
 )
 _SERIAL_TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,}")
 _WHOLE_IDENTIFIER_RE = re.compile(r"^[0-9A-Fa-f]{12}(?:[0-9A-Fa-f]{4})?$")
+_MATTER_NODE_ID_RE = re.compile(
+    r"^deviceid_[0-9A-Fa-f]+-([0-9A-Fa-f]+)-MatterNodeDevice$"
+)
 
 
 def _extract_identifier_candidates(value: Any) -> set[str]:
@@ -153,14 +156,58 @@ def _collect_weak_ha_identifiers(device_entry: dr.DeviceEntry) -> set[str]:
     return identifiers
 
 
+def _parse_matter_node_id(identifier_value: str) -> int | None:
+    """Parse the integer node ID from an HA Matter device identifier string."""
+    match = _MATTER_NODE_ID_RE.match(identifier_value)
+    if not match:
+        return None
+    try:
+        return int(match.group(1), 16)
+    except ValueError:
+        return None
+
+
+async def _async_get_matter_mac(hass: HomeAssistant, node_id: int) -> str | None:
+    """Return the normalized Thread/WiFi MAC for a Matter node via the Matter integration."""
+    try:
+        from homeassistant.components.matter import DOMAIN as _MATTER_DOMAIN  # noqa: PLC0415
+    except ImportError:
+        return None
+
+    matter_data = hass.data.get(_MATTER_DOMAIN)
+    if not matter_data:
+        return None
+
+    for entry_data in matter_data.values():
+        client = getattr(entry_data, "client", None)
+        if client is None:
+            continue
+        try:
+            result = await client.send_command("get_node_diagnostics", node_id=node_id)
+            mac = (
+                result.get("mac_address")
+                if isinstance(result, dict)
+                else getattr(result, "mac_address", None)
+            )
+            if mac:
+                return normalize_identifier(mac)
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Matter get_node_diagnostics failed for node %d", node_id)
+            continue
+    return None
+
+
 def _match_device(
     device_entry: dr.DeviceEntry,
     inventory: NetBoxInventory,
     *,
     enable_weak_matching: bool,
+    extra_identifiers: set[str] | None = None,
 ) -> HomeAssistantDeviceMatch | None:
     """Match one Home Assistant device against the NetBox inventory."""
     strong_identifiers = _collect_ha_identifiers(device_entry)
+    if extra_identifiers:
+        strong_identifiers = strong_identifiers | extra_identifiers
     weak_identifiers = set()
     if enable_weak_matching:
         weak_identifiers = _collect_weak_ha_identifiers(device_entry) - strong_identifiers
@@ -273,6 +320,18 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
         matches: dict[str, HomeAssistantDeviceMatch] = {}
 
         for device_entry in device_registry.devices.values():
+            extra_ids: set[str] = set()
+            for id_type, id_val in device_entry.identifiers:
+                if id_type != "matter":
+                    continue
+                node_id = _parse_matter_node_id(id_val)
+                if node_id is None:
+                    continue
+                mac = await _async_get_matter_mac(self.hass, node_id)
+                if mac:
+                    extra_ids.add(mac)
+                break
+
             match = _match_device(
                 device_entry,
                 inventory,
@@ -280,6 +339,7 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
                     CONF_ENABLE_WEAK_MATCHING,
                     DEFAULT_ENABLE_WEAK_MATCHING,
                 ),
+                extra_identifiers=extra_ids or None,
             )
             if match is None:
                 continue
