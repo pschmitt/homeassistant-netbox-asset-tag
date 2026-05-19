@@ -32,8 +32,11 @@ from .models import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-_SEPARATED_IDENTIFIER_RE = re.compile(
-    r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}[:-]){5,7}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])"
+_SEPARATED_IDENTIFIER_PATTERNS = (
+    re.compile(r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])"),
+    re.compile(r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])"),
+    re.compile(r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}:){7}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])"),
+    re.compile(r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}-){7}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])"),
 )
 _SERIAL_TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,}")
 _WHOLE_IDENTIFIER_RE = re.compile(r"^[0-9A-Fa-f]{12}(?:[0-9A-Fa-f]{4})?$")
@@ -58,10 +61,11 @@ def _extract_identifier_candidates(value: Any) -> set[str]:
         if normalized:
             matches.add(normalized)
 
-    for candidate in _SEPARATED_IDENTIFIER_RE.findall(stripped):
-        normalized = normalize_identifier(candidate)
-        if normalized:
-            matches.add(normalized)
+    for pattern in _SEPARATED_IDENTIFIER_PATTERNS:
+        for candidate in pattern.findall(stripped):
+            normalized = normalize_identifier(candidate)
+            if normalized:
+                matches.add(normalized)
 
     return matches
 

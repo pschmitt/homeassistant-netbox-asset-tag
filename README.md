@@ -14,7 +14,7 @@ The sensor:
 The integration matches Home Assistant devices against NetBox using normalized hardware identifiers from:
 
 - Home Assistant device `connections`: `mac`, `bluetooth`, `zigbee`
-- Home Assistant device `identifiers`: values such as `zha` IEEE addresses and other EUI-like identifiers
+- Home Assistant device `identifiers`: values such as `zha` IEEE addresses and other EUI-like identifiers, including MAC-like substrings embedded in integration-specific IDs
 - Home Assistant device `identifiers`: serial-like raw integration identifiers as a weaker fallback when no strict hardware identifier match exists
 - NetBox device custom fields:
   - `zigbee_ieee`
