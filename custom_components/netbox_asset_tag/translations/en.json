@@ -2,13 +2,13 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add NetBox Asset Tag",
+        "title": "🏷️ Add NetBox Asset Tag",
         "description": "Connect Home Assistant to NetBox for device asset-tag enrichment.",
         "data": {
-          "url": "NetBox URL",
-          "name": "Name",
-          "token": "API token",
-          "verify_ssl": "Verify SSL certificate"
+          "url": "🌐 NetBox URL",
+          "name": "📝 Name",
+          "token": "🔑 API token",
+          "verify_ssl": "🔒 Verify SSL certificate"
         }
       }
     },
@@ -24,10 +24,42 @@
   "options": {
     "step": {
       "init": {
-        "title": "NetBox Asset Tag options",
+        "title": "⚙️ NetBox Asset Tag options",
+        "menu_options": {
+          "general": "⚙️ General settings",
+          "manual_overrides": "🔀 Manage manual overrides"
+        }
+      },
+      "general": {
+        "title": "⚙️ NetBox Asset Tag options",
         "data": {
-          "scan_interval": "Update interval in seconds",
-          "enable_weak_matching": "Enable weaker serial matching from raw integration identifiers"
+          "scan_interval": "⏱️ Update interval in seconds",
+          "enable_weak_matching": "🧪 Enable weaker serial matching from raw integration identifiers"
+        }
+      },
+      "manual_overrides": {
+        "title": "🔀 Manual overrides",
+        "menu_options": {
+          "add_override": "➕ Add override",
+          "remove_override": "➖ Remove override"
+        }
+      },
+      "add_override": {
+        "title": "🏠 Choose Home Assistant device",
+        "data": {
+          "attached_device_key": "🏠 Home Assistant device"
+        }
+      },
+      "add_override_target": {
+        "title": "🗃️ Choose NetBox device",
+        "data": {
+          "netbox_device_id": "🗃️ NetBox device"
+        }
+      },
+      "remove_override": {
+        "title": "➖ Remove manual override",
+        "data": {
+          "attached_device_key": "🔀 Override"
         }
       }
     }

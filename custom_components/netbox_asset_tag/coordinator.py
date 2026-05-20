@@ -16,6 +16,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import NetBoxApiClient
 from .const import (
+    CONF_MANUAL_OVERRIDES,
     CONF_ENABLE_WEAK_MATCHING,
     DEFAULT_ENABLE_WEAK_MATCHING,
     DEFAULT_SCAN_INTERVAL,
@@ -26,6 +27,7 @@ from .models import (
     HomeAssistantDeviceMatch,
     NetBoxInventory,
     RegistryEntry,
+    freeze_registry_entries,
     get_attached_device_key,
     normalize_identifier,
     normalize_serial,
@@ -131,14 +133,47 @@ def _extract_serial_candidates(value: Any) -> set[str]:
     return matches
 
 
-def _freeze_registry_entries(entries: Any) -> tuple[RegistryEntry, ...]:
-    """Return registry entries as stable string tuples."""
-    frozen_entries: list[RegistryEntry] = []
-    for entry in entries or ():
-        if not isinstance(entry, (list, tuple)):
-            continue
-        frozen_entries.append(tuple(str(part) for part in entry))
-    return tuple(sorted(frozen_entries, key=repr))
+def _get_attached_device_key_for_entry(device_entry: dr.DeviceEntry) -> str:
+    """Return the stable attached device key for a Home Assistant device."""
+    frozen_identifiers = freeze_registry_entries(device_entry.identifiers)
+    frozen_connections = freeze_registry_entries(device_entry.connections)
+    return get_attached_device_key(
+        frozen_identifiers,
+        frozen_connections,
+        device_entry.id,
+    )
+
+
+def _build_match(
+    device_entry: dr.DeviceEntry,
+    netbox_device_id: int,
+    inventory: NetBoxInventory,
+    *,
+    matched_identifiers: tuple[str, ...],
+    match_methods: tuple[str, ...],
+    weak_match: bool,
+    manual_override: bool,
+) -> HomeAssistantDeviceMatch:
+    """Build a match payload for one Home Assistant device."""
+    netbox_device = inventory.devices[netbox_device_id]
+    frozen_identifiers = freeze_registry_entries(device_entry.identifiers)
+    frozen_connections = freeze_registry_entries(device_entry.connections)
+
+    return HomeAssistantDeviceMatch(
+        ha_device_id=device_entry.id,
+        attached_device_key=get_attached_device_key(frozen_identifiers, frozen_connections, device_entry.id),
+        ha_device_name=device_entry.name_by_user or device_entry.name or device_entry.id,
+        ha_identifiers=frozen_identifiers,
+        ha_connections=frozen_connections,
+        netbox_device_id=netbox_device.device_id,
+        netbox_asset_tag=netbox_device.asset_tag,
+        netbox_display=netbox_device.display,
+        netbox_url=netbox_device.display_url,
+        matched_identifiers=matched_identifiers,
+        match_methods=match_methods,
+        weak_match=weak_match,
+        manual_override=manual_override,
+    )
 
 
 def _collect_ha_identifiers(device_entry: dr.DeviceEntry) -> set[str]:
@@ -235,9 +270,6 @@ def _match_device(
         netbox_device_id = next(iter(weak_device_ids))
         weak_match = True
 
-    netbox_device = inventory.devices[netbox_device_id]
-    frozen_identifiers = _freeze_registry_entries(device_entry.identifiers)
-    frozen_connections = _freeze_registry_entries(device_entry.connections)
     candidate_identifiers = strong_identifiers | weak_identifiers
     matched_identifiers = tuple(
         sorted(
@@ -256,23 +288,14 @@ def _match_device(
         )
     )
 
-    return HomeAssistantDeviceMatch(
-        ha_device_id=device_entry.id,
-        attached_device_key=get_attached_device_key(
-            frozen_identifiers,
-            frozen_connections,
-            device_entry.id,
-        ),
-        ha_device_name=device_entry.name_by_user or device_entry.name or device_entry.id,
-        ha_identifiers=frozen_identifiers,
-        ha_connections=frozen_connections,
-        netbox_device_id=netbox_device.device_id,
-        netbox_asset_tag=netbox_device.asset_tag,
-        netbox_display=netbox_device.display,
-        netbox_url=netbox_device.display_url,
+    return _build_match(
+        device_entry,
+        netbox_device_id,
+        inventory,
         matched_identifiers=matched_identifiers,
         match_methods=match_methods,
         weak_match=weak_match,
+        manual_override=False,
     )
 
 
@@ -316,8 +339,10 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
 
         device_registry = dr.async_get(self.hass)
         matches: dict[str, HomeAssistantDeviceMatch] = {}
+        attached_devices: dict[str, dr.DeviceEntry] = {}
 
         for device_entry in device_registry.devices.values():
+            attached_devices[_get_attached_device_key_for_entry(device_entry)] = device_entry
             extra_ids: set[str] = set()
             for entry in device_entry.identifiers:
                 if not isinstance(entry, (list, tuple)) or len(entry) < 2:
@@ -358,6 +383,45 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
                 match.attached_device_key,
                 existing_match.netbox_device_id,
                 match.netbox_device_id,
+            )
+
+        for attached_device_key, netbox_device_id in (
+            self.config_entry.options.get(CONF_MANUAL_OVERRIDES, {}) or {}
+        ).items():
+            device_entry = attached_devices.get(attached_device_key)
+            if device_entry is None:
+                _LOGGER.debug(
+                    "Skipping manual override for missing Home Assistant device key %s",
+                    attached_device_key,
+                )
+                continue
+
+            try:
+                resolved_netbox_device_id = int(netbox_device_id)
+            except (TypeError, ValueError):
+                _LOGGER.debug(
+                    "Skipping manual override for Home Assistant device key %s with invalid NetBox device id %r",
+                    attached_device_key,
+                    netbox_device_id,
+                )
+                continue
+
+            if resolved_netbox_device_id not in inventory.devices:
+                _LOGGER.debug(
+                    "Skipping manual override for Home Assistant device key %s because NetBox device %s was not found",
+                    attached_device_key,
+                    resolved_netbox_device_id,
+                )
+                continue
+
+            matches[attached_device_key] = _build_match(
+                device_entry,
+                resolved_netbox_device_id,
+                inventory,
+                matched_identifiers=(),
+                match_methods=("manual_override",),
+                weak_match=False,
+                manual_override=True,
             )
 
         return matches

@@ -12,11 +12,16 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResu
 from homeassistant.const import CONF_NAME, CONF_SCAN_INTERVAL, CONF_TOKEN, CONF_URL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers import area_registry as ar, device_registry as dr
 from homeassistant.helpers.selector import (
     BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -24,6 +29,7 @@ from homeassistant.helpers.selector import (
 
 from .api import NetBoxApiClient, normalize_url
 from .const import (
+    CONF_MANUAL_OVERRIDES,
     CONF_ENABLE_WEAK_MATCHING,
     CONF_VERIFY_SSL,
     DEFAULT_ENABLE_WEAK_MATCHING,
@@ -33,6 +39,7 @@ from .const import (
     MIN_SCAN_INTERVAL,
 )
 from .exceptions import NetBoxApiError, NetBoxAuthenticationError
+from .models import NetBoxInventory, freeze_registry_entries, get_attached_device_key
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -127,22 +134,38 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize the options flow."""
         self._config_entry = config_entry
+        self._options = dict(config_entry.options)
+        self._selected_attached_device_key: str | None = None
+        self._inventory: NetBoxInventory | None = None
 
     async def async_step_init(
         self,
         user_input: dict[str, Any] | None = None,
     ) -> ConfigFlowResult:
-        """Manage integration options."""
+        """Show the options menu."""
+        del user_input
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["general", "manual_overrides"],
+        )
+
+    async def async_step_general(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Manage general integration options."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            self._options.update(user_input)
+            self._options.setdefault(CONF_MANUAL_OVERRIDES, self._get_manual_overrides())
+            return self.async_create_entry(title="", data=self._options)
 
         return self.async_show_form(
-            step_id="init",
+            step_id="general",
             data_schema=vol.Schema(
                 {
                     vol.Required(
                         CONF_SCAN_INTERVAL,
-                        default=self._config_entry.options.get(
+                        default=self._options.get(
                             CONF_SCAN_INTERVAL,
                             DEFAULT_SCAN_INTERVAL,
                         ),
@@ -155,7 +178,7 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
                     ),
                     vol.Required(
                         CONF_ENABLE_WEAK_MATCHING,
-                        default=self._config_entry.options.get(
+                        default=self._options.get(
                             CONF_ENABLE_WEAK_MATCHING,
                             DEFAULT_ENABLE_WEAK_MATCHING,
                         ),
@@ -163,3 +186,233 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
                 }
             ),
         )
+
+    async def async_step_manual_overrides(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Show the manual override management menu."""
+        del user_input
+        menu_options = ["add_override"]
+        if self._get_manual_overrides():
+            menu_options.append("remove_override")
+        return self.async_show_menu(
+            step_id="manual_overrides",
+            menu_options=menu_options,
+        )
+
+    async def async_step_add_override(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Choose the Home Assistant device to override."""
+        if user_input is not None:
+            self._selected_attached_device_key = user_input["attached_device_key"]
+            return await self.async_step_add_override_target()
+
+        options = await self._async_build_home_assistant_device_options()
+        return self.async_show_form(
+            step_id="add_override",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("attached_device_key"): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_add_override_target(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Choose the NetBox target for a manual override."""
+        if user_input is not None:
+            overrides = self._get_manual_overrides()
+            overrides[self._selected_attached_device_key or ""] = int(user_input["netbox_device_id"])
+            self._options[CONF_MANUAL_OVERRIDES] = overrides
+            return self.async_create_entry(title="", data=self._options)
+
+        options = await self._async_build_netbox_device_options()
+        return self.async_show_form(
+            step_id="add_override_target",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("netbox_device_id"): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_remove_override(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Remove an existing manual override."""
+        if user_input is not None:
+            overrides = self._get_manual_overrides()
+            overrides.pop(user_input["attached_device_key"], None)
+            self._options[CONF_MANUAL_OVERRIDES] = overrides
+            return self.async_create_entry(title="", data=self._options)
+
+        options = await self._async_build_existing_override_options()
+        return self.async_show_form(
+            step_id="remove_override",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("attached_device_key"): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+            ),
+        )
+
+    def _get_manual_overrides(self) -> dict[str, int]:
+        """Return manual overrides normalized to a string->int mapping."""
+        raw_overrides = self._options.get(CONF_MANUAL_OVERRIDES, {}) or {}
+        overrides: dict[str, int] = {}
+        for attached_device_key, netbox_device_id in raw_overrides.items():
+            try:
+                overrides[str(attached_device_key)] = int(netbox_device_id)
+            except (TypeError, ValueError):
+                continue
+        return overrides
+
+    async def _async_get_inventory(self) -> NetBoxInventory:
+        """Fetch and cache the NetBox inventory for override selection."""
+        if self._inventory is not None:
+            return self._inventory
+
+        client: NetBoxApiClient | None = (
+            self.hass.data.get(DOMAIN, {})
+            .get(self._config_entry.entry_id, {})
+            .get("client")
+        )
+        if client is None:
+            session = async_create_clientsession(
+                self.hass,
+                verify_ssl=self._config_entry.data[CONF_VERIFY_SSL],
+            )
+            client = NetBoxApiClient(
+                session=session,
+                base_url=self._config_entry.data[CONF_URL],
+                token=self._config_entry.data[CONF_TOKEN],
+            )
+
+        self._inventory = await client.async_fetch_inventory()
+        return self._inventory
+
+    async def _async_build_home_assistant_device_options(self) -> list[SelectOptionDict]:
+        """Return dropdown options for Home Assistant devices."""
+        device_registry = dr.async_get(self.hass)
+        area_registry = ar.async_get(self.hass)
+        matched_device_keys = set(
+            self.hass.data.get(DOMAIN, {})
+            .get(self._config_entry.entry_id, {})
+            .get("coordinator", {})
+            .data.keys()
+            if self.hass.data.get(DOMAIN, {}).get(self._config_entry.entry_id)
+            else ()
+        )
+
+        sortable_options: list[tuple[bool, str, SelectOptionDict]] = []
+        for device_entry in device_registry.devices.values():
+            if device_entry.entry_type is not None:
+                continue
+
+            frozen_identifiers = freeze_registry_entries(device_entry.identifiers)
+            frozen_connections = freeze_registry_entries(device_entry.connections)
+            attached_device_key = get_attached_device_key(
+                frozen_identifiers,
+                frozen_connections,
+                device_entry.id,
+            )
+            is_matched = attached_device_key in matched_device_keys
+            area_name = ""
+            if device_entry.area_id:
+                area_entry = area_registry.async_get_area(device_entry.area_id)
+                area_name = area_entry.name if area_entry else ""
+
+            name = device_entry.name_by_user or device_entry.name or device_entry.id
+            model = " ".join(
+                part for part in (device_entry.manufacturer, device_entry.model) if part
+            )
+            label_parts = [name]
+            if model:
+                label_parts.append(model)
+            if area_name:
+                label_parts.append(area_name)
+            label_parts.append("matched" if is_matched else "unmatched")
+            label = " - ".join(label_parts)
+
+            sortable_options.append(
+                (
+                    is_matched,
+                    label.lower(),
+                    SelectOptionDict(value=attached_device_key, label=label),
+                )
+            )
+
+        sortable_options.sort(key=lambda item: (item[0], item[1]))
+        return [option for _, __, option in sortable_options]
+
+    async def _async_build_netbox_device_options(self) -> list[SelectOptionDict]:
+        """Return dropdown options for NetBox devices."""
+        inventory = await self._async_get_inventory()
+        return [
+            SelectOptionDict(value=str(device.device_id), label=device.display)
+            for device in sorted(
+                inventory.devices.values(),
+                key=lambda device: device.display.lower(),
+            )
+        ]
+
+    async def _async_build_existing_override_options(self) -> list[SelectOptionDict]:
+        """Return dropdown options for existing manual overrides."""
+        inventory = await self._async_get_inventory()
+        device_registry = dr.async_get(self.hass)
+        area_registry = ar.async_get(self.hass)
+        labels_by_key: dict[str, str] = {}
+
+        for device_entry in device_registry.devices.values():
+            frozen_identifiers = freeze_registry_entries(device_entry.identifiers)
+            frozen_connections = freeze_registry_entries(device_entry.connections)
+            attached_device_key = get_attached_device_key(
+                frozen_identifiers,
+                frozen_connections,
+                device_entry.id,
+            )
+            area_name = ""
+            if device_entry.area_id:
+                area_entry = area_registry.async_get_area(device_entry.area_id)
+                area_name = area_entry.name if area_entry else ""
+            device_name = device_entry.name_by_user or device_entry.name or device_entry.id
+            if area_name:
+                device_name = f"{device_name} - {area_name}"
+            labels_by_key[attached_device_key] = device_name
+
+        options: list[SelectOptionDict] = []
+        for attached_device_key, netbox_device_id in sorted(self._get_manual_overrides().items()):
+            netbox_device = inventory.devices.get(netbox_device_id)
+            ha_label = labels_by_key.get(attached_device_key, attached_device_key)
+            netbox_label = (
+                netbox_device.display if netbox_device is not None else f"NetBox device {netbox_device_id}"
+            )
+            options.append(
+                SelectOptionDict(
+                    value=attached_device_key,
+                    label=f"{ha_label} -> {netbox_label}",
+                )
+            )
+
+        return options

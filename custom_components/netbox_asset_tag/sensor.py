@@ -9,6 +9,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    ATTR_MANUAL_OVERRIDE,
     ATTR_MATCHED_IDENTIFIERS,
     ATTR_MATCH_METHODS,
     ATTR_NETBOX_DEVICE_ID,
@@ -111,4 +112,5 @@ class NetBoxAssetTagSensor(NetBoxAssetTagEntity, SensorEntity):
             ATTR_MATCH_METHODS: list(match.match_methods),
             ATTR_PRIMARY_MATCH_METHOD: match.match_methods[0] if match.match_methods else None,
             ATTR_WEAK_MATCH: match.weak_match,
+            ATTR_MANUAL_OVERRIDE: match.manual_override,
         }

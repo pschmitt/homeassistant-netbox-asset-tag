@@ -9,6 +9,7 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 CONF_VERIFY_SSL = "verify_ssl"
 CONF_ENABLE_WEAK_MATCHING = "enable_weak_matching"
+CONF_MANUAL_OVERRIDES = "manual_overrides"
 
 DEFAULT_SCAN_INTERVAL = 1800
 MIN_SCAN_INTERVAL = 300
@@ -26,3 +27,4 @@ ATTR_PRIMARY_MATCH_METHOD = "primary_match_method"
 ATTR_NETBOX_DEVICE_ID = "netbox_device_id"
 ATTR_NETBOX_URL = "netbox_url"
 ATTR_WEAK_MATCH = "weak_match"
+ATTR_MANUAL_OVERRIDE = "manual_override"

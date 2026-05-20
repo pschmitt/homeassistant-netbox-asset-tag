@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 RegistryEntry: TypeAlias = tuple[str, ...]
 
@@ -70,6 +70,16 @@ def get_attached_device_key(
     return hashlib.sha1(payload.encode(), usedforsecurity=False).hexdigest()
 
 
+def freeze_registry_entries(entries: Any) -> tuple[RegistryEntry, ...]:
+    """Return registry entries as stable string tuples."""
+    frozen_entries: list[RegistryEntry] = []
+    for entry in entries or ():
+        if not isinstance(entry, (list, tuple)):
+            continue
+        frozen_entries.append(tuple(str(part) for part in entry))
+    return tuple(sorted(frozen_entries, key=repr))
+
+
 @dataclass(slots=True, frozen=True)
 class NetBoxDeviceRecord:
     """One normalized NetBox device."""
@@ -110,3 +120,4 @@ class HomeAssistantDeviceMatch:
     matched_identifiers: tuple[str, ...]
     match_methods: tuple[str, ...]
     weak_match: bool
+    manual_override: bool
