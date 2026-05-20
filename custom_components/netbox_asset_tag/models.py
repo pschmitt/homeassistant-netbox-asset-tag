@@ -48,6 +48,32 @@ def normalize_serial(value: str | None) -> str | None:
     return normalized
 
 
+def normalize_device_identifier(value: str | None) -> str | None:
+    """Normalize a generic device identifier for exact matching."""
+    if value is None:
+        return None
+
+    normalized = value.strip()
+    if not normalized:
+        return None
+    return normalized
+
+
+def parse_device_identifiers(value: str | None) -> tuple[str, ...]:
+    """Parse a custom-field device identifier into exact-match tokens."""
+    if not value:
+        return ()
+
+    identifiers: list[str] = []
+    for line in value.splitlines():
+        for token in line.split(","):
+            normalized = normalize_device_identifier(token)
+            if normalized and normalized not in identifiers:
+                identifiers.append(normalized)
+
+    return tuple(identifiers)
+
+
 def get_attached_device_key(
     identifiers: tuple[RegistryEntry, ...],
     connections: tuple[RegistryEntry, ...],
@@ -92,6 +118,7 @@ class NetBoxDeviceRecord:
     serial: str | None
     zigbee_ieee: str | None
     thread_eui64: str | None
+    device_identifiers: tuple[str, ...]
 
 
 @dataclass(slots=True)

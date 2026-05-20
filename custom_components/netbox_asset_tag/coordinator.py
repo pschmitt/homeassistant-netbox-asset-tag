@@ -29,6 +29,7 @@ from .models import (
     RegistryEntry,
     freeze_registry_entries,
     get_attached_device_key,
+    normalize_device_identifier,
     normalize_identifier,
     normalize_serial,
 )
@@ -187,6 +188,22 @@ def _collect_ha_identifiers(device_entry: dr.DeviceEntry) -> set[str]:
     return identifiers
 
 
+def _collect_explicit_ha_identifiers(device_entry: dr.DeviceEntry) -> set[str]:
+    """Collect exact integration-provided identifiers for generic matching."""
+    identifiers: set[str] = set()
+    for entry in device_entry.identifiers or ():
+        if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+            continue
+        domain = str(entry[0]).strip()
+        raw_value = normalize_device_identifier(str(entry[1]))
+        if not raw_value:
+            continue
+        identifiers.add(raw_value)
+        if domain:
+            identifiers.add(f"{domain}:{raw_value}")
+    return identifiers
+
+
 def _collect_weak_ha_identifiers(device_entry: dr.DeviceEntry) -> set[str]:
     """Collect weaker serial-like identifiers from raw Home Assistant values."""
     identifiers: set[str] = set()
@@ -239,6 +256,7 @@ def _match_device(
 ) -> HomeAssistantDeviceMatch | None:
     """Match one Home Assistant device against the NetBox inventory."""
     strong_identifiers = _collect_ha_identifiers(device_entry)
+    strong_identifiers.update(_collect_explicit_ha_identifiers(device_entry))
     if extra_identifiers:
         strong_identifiers = strong_identifiers | extra_identifiers
     weak_identifiers = set()

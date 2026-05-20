@@ -19,6 +19,7 @@ from .exceptions import NetBoxApiError, NetBoxAuthenticationError
 from .models import (
     NetBoxDeviceRecord,
     NetBoxInventory,
+    parse_device_identifiers,
     normalize_identifier,
     normalize_serial,
 )
@@ -73,10 +74,18 @@ class NetBoxApiClient:
                 serial=normalize_serial(item.get("serial")),
                 zigbee_ieee=normalize_identifier(custom_fields.get("zigbee_ieee")),
                 thread_eui64=normalize_identifier(custom_fields.get("thread_eui64")),
+                device_identifiers=parse_device_identifiers(
+                    custom_fields.get("device_identifier")
+                ),
             )
             devices[record.device_id] = record
 
-            for identifier in (record.serial, record.zigbee_ieee, record.thread_eui64):
+            for identifier in (
+                record.serial,
+                record.zigbee_ieee,
+                record.thread_eui64,
+                *record.device_identifiers,
+            ):
                 if identifier:
                     candidates[identifier].add(record.device_id)
 
@@ -125,6 +134,8 @@ class NetBoxApiClient:
                 return "zigbee"
             if device.thread_eui64 == identifier:
                 return "thread"
+            if identifier in device.device_identifiers:
+                return "device_identifier"
 
         for item in interfaces_payload:
             device = item.get("device") or {}
