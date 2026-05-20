@@ -12,6 +12,7 @@ import aiohttp
 from .const import (
     API_DEVICES_PATH,
     API_INTERFACES_PATH,
+    API_MAC_ADDRESSES_PATH,
     API_PAGE_SIZE,
     DEFAULT_REQUEST_TIMEOUT,
 )
@@ -53,7 +54,9 @@ class NetBoxApiClient:
 
     async def async_fetch_inventory(self) -> NetBoxInventory:
         """Fetch and normalize NetBox devices and interfaces."""
-        devices_payload, interfaces_payload = await self._async_fetch_devices_and_interfaces()
+        devices_payload, interfaces_payload, mac_addresses_payload = (
+            await self._async_fetch_inventory_payloads()
+        )
 
         devices: dict[int, NetBoxDeviceRecord] = {}
         candidates: dict[str, set[int]] = defaultdict(set)
@@ -96,6 +99,24 @@ class NetBoxApiClient:
                 continue
 
             mac_address = normalize_identifier(item.get("mac_address"))
+            if not mac_address:
+                primary_mac = item.get("primary_mac_address") or {}
+                mac_address = normalize_identifier(primary_mac.get("mac_address"))
+            if mac_address:
+                candidates[mac_address].add(int(device_id))
+
+        for item in mac_addresses_payload:
+            assigned_object_type = item.get("assigned_object_type")
+            if assigned_object_type != "dcim.interface":
+                continue
+
+            interface = item.get("assigned_object") or {}
+            device = interface.get("device") or {}
+            device_id = device.get("id")
+            if device_id is None or int(device_id) not in devices:
+                continue
+
+            mac_address = normalize_identifier(item.get("mac_address"))
             if mac_address:
                 candidates[mac_address].add(int(device_id))
 
@@ -111,6 +132,7 @@ class NetBoxApiClient:
                 identifier,
                 devices,
                 interfaces_payload,
+                mac_addresses_payload,
             )
 
         return NetBoxInventory(
@@ -125,6 +147,7 @@ class NetBoxApiClient:
         identifier: str,
         devices: dict[int, NetBoxDeviceRecord],
         interfaces_payload: list[dict[str, Any]],
+        mac_addresses_payload: list[dict[str, Any]],
     ) -> str:
         """Return the match method for one resolved identifier."""
         for device in devices.values():
@@ -142,20 +165,36 @@ class NetBoxApiClient:
             device_id = device.get("id")
             if device_id is None or int(device_id) not in devices:
                 continue
+            mac_address = normalize_identifier(item.get("mac_address"))
+            if not mac_address:
+                primary_mac = item.get("primary_mac_address") or {}
+                mac_address = normalize_identifier(primary_mac.get("mac_address"))
+            if mac_address == identifier:
+                return "mac"
+
+        for item in mac_addresses_payload:
+            if item.get("assigned_object_type") != "dcim.interface":
+                continue
+            assigned_object = item.get("assigned_object") or {}
+            device = assigned_object.get("device") or {}
+            device_id = device.get("id")
+            if device_id is None or int(device_id) not in devices:
+                continue
             if normalize_identifier(item.get("mac_address")) == identifier:
                 return "mac"
 
         return "identifier"
 
-    async def _async_fetch_devices_and_interfaces(
+    async def _async_fetch_inventory_payloads(
         self,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """Fetch paginated NetBox devices and interfaces."""
-        devices, interfaces = await asyncio.gather(
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        """Fetch paginated NetBox devices, interfaces, and MAC addresses."""
+        devices, interfaces, mac_addresses = await asyncio.gather(
             self._async_paginate(API_DEVICES_PATH),
             self._async_paginate(API_INTERFACES_PATH),
+            self._async_paginate(API_MAC_ADDRESSES_PATH),
         )
-        return devices, interfaces
+        return devices, interfaces, mac_addresses
 
     async def _async_paginate(self, path: str) -> list[dict[str, Any]]:
         """Return all records from one paginated API endpoint."""
