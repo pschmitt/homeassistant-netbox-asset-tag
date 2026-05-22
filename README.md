@@ -61,3 +61,7 @@ The integration is configured from the Home Assistant UI:
   - `match_methods`
   - `primary_match_method`
   - `weak_match`
+
+## Branding
+
+This repository bundles NetBox logo assets sourced from the upstream NetBox project. NetBox and related marks belong to their respective owners. The integration code is GPL-3.0, but the bundled third-party logos are not relicensed under GPL.
