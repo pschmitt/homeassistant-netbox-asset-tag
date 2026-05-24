@@ -110,6 +110,8 @@ class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
                 parts.append(f"- status → **{changes['status']}**")
             if "name" in changes:
                 parts.append(f"- name → **{changes['name']}**")
+            if "ha_url" in changes:
+                parts.append(f"- ha_url → {changes['ha_url']}")
             loc_name = entry.get("location_name")
             if loc_name:
                 parts.append(f"- location → **{loc_name}**")

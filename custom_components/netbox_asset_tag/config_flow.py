@@ -29,16 +29,19 @@ from homeassistant.helpers.selector import (
 
 from .api import NetBoxApiClient, normalize_url
 from .const import (
+    CONF_HA_URL_FIELD,
     CONF_MANUAL_OVERRIDES,
     CONF_ENABLE_WEAK_MATCHING,
     CONF_SYNC_FIELDS,
     CONF_VERIFY_SSL,
     DEFAULT_ENABLE_WEAK_MATCHING,
+    DEFAULT_HA_URL_FIELD,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SYNC_FIELDS,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
     MIN_SCAN_INTERVAL,
+    SYNC_FIELD_HA_URL,
     SYNC_FIELD_LOCATION,
     SYNC_FIELD_NAME,
     SYNC_FIELD_STATUS,
@@ -111,6 +114,7 @@ class NetBoxAssetTagConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
                     CONF_ENABLE_WEAK_MATCHING: DEFAULT_ENABLE_WEAK_MATCHING,
                     CONF_SYNC_FIELDS: DEFAULT_SYNC_FIELDS,
+                    CONF_HA_URL_FIELD: DEFAULT_HA_URL_FIELD,
                 }
                 title = user_input.get(CONF_NAME) or info["title"]
                 return self.async_create_entry(title=title, data=data, options=options)
@@ -216,11 +220,16 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
                                 SelectOptionDict(value=SYNC_FIELD_STATUS, label="Status (active / inventory)"),
                                 SelectOptionDict(value=SYNC_FIELD_LOCATION, label="Location (from HA area)"),
                                 SelectOptionDict(value=SYNC_FIELD_NAME, label="Name (from HA device name)"),
+                                SelectOptionDict(value=SYNC_FIELD_HA_URL, label="HA device URL (NetBox custom field)"),
                             ],
                             multiple=True,
                             mode=SelectSelectorMode.LIST,
                         )
                     ),
+                    vol.Optional(
+                        CONF_HA_URL_FIELD,
+                        default=self._options.get(CONF_HA_URL_FIELD, DEFAULT_HA_URL_FIELD),
+                    ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
                 }
             ),
         )

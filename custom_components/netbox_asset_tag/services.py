@@ -14,10 +14,13 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 
 from .const import (
+    CONF_HA_URL_FIELD,
     CONF_SYNC_FIELDS,
+    DEFAULT_HA_URL_FIELD,
     DEFAULT_SYNC_FIELDS,
     DOMAIN,
     SERVICE_SYNC_TO_NETBOX,
+    SYNC_FIELD_HA_URL,
     SYNC_FIELD_LOCATION,
     SYNC_FIELD_NAME,
     SYNC_FIELD_STATUS,
@@ -128,6 +131,24 @@ async def async_register_services(hass: HomeAssistant) -> None:
                     if ha_name:
                         payload["name"] = ha_name
 
+                ha_device_url: str | None = None
+                if SYNC_FIELD_HA_URL in sync_fields:
+                    base_url = hass.config.external_url or hass.config.internal_url
+                    if base_url:
+                        ha_url_field = coordinator.config_entry.options.get(
+                            CONF_HA_URL_FIELD, DEFAULT_HA_URL_FIELD
+                        )
+                        ha_device_url = (
+                            f"{base_url.rstrip('/')}/config/devices/device/{match.ha_device_id}"
+                        )
+                        payload.setdefault("custom_fields", {})[ha_url_field] = ha_device_url
+                    else:
+                        _LOGGER.warning(
+                            "Cannot sync HA device URL to NetBox for %r: "
+                            "no external or internal URL configured in Home Assistant",
+                            match.ha_device_name,
+                        )
+
                 try:
                     await client.async_patch_device(match.netbox_device_id, payload)
                     _LOGGER.info(
@@ -137,13 +158,18 @@ async def async_register_services(hass: HomeAssistant) -> None:
                         match.netbox_asset_tag,
                         payload,
                     )
+                    changes_flat: dict[str, Any] = {
+                        k: v for k, v in payload.items() if k != "custom_fields"
+                    }
+                    if ha_device_url is not None:
+                        changes_flat["ha_url"] = ha_device_url
                     synced.append(
                         {
                             "ha_device_id": match.ha_device_id,
                             "ha_device_name": match.ha_device_name,
                             "netbox_device_id": match.netbox_device_id,
                             "netbox_asset_tag": match.netbox_asset_tag,
-                            "changes": payload,
+                            "changes": changes_flat,
                             **({"ha_area": area_name} if area_name else {}),
                             **({"location_name": location_name} if location_name else {}),
                             **(
