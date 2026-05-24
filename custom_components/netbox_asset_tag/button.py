@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
+from homeassistant.components.persistent_notification import async_create as pn_create
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
@@ -83,13 +84,50 @@ class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
         return "Sync to NetBox"
 
     async def async_press(self) -> None:
-        """Call sync_to_netbox for this device only."""
+        """Call sync_to_netbox for this device and notify with the result."""
         match = self.matched_device
         if match is None:
             return
-        await self.hass.services.async_call(
+
+        response = await self.hass.services.async_call(
             DOMAIN,
             SERVICE_SYNC_TO_NETBOX,
             {"device_id": [match.ha_device_id]},
             blocking=True,
+            return_response=True,
+        ) or {}
+
+        synced = response.get("synced", [])
+        errors = response.get("errors", [])
+        skipped = response.get("skipped", [])
+
+        lines: list[str] = []
+
+        for entry in synced:
+            changes = entry.get("changes", {})
+            parts: list[str] = []
+            if "status" in changes:
+                parts.append(f"status → **{changes['status']}**")
+            loc_name = entry.get("location_name")
+            if loc_name:
+                parts.append(f"location → **{loc_name}**")
+            elif entry.get("location_unmatched"):
+                parts.append(f"location → no match for area *{entry.get('ha_area', '?')}*")
+            lines.append("✅ " + (", ".join(parts) if parts else "synced"))
+
+        for entry in errors:
+            lines.append(f"❌ {entry.get('error', 'unknown error')}")
+
+        for entry in skipped:
+            reason = entry.get("reason", "skipped")
+            lines.append(f"⚠️ {reason.replace('_', ' ')}")
+
+        if not lines:
+            lines = ["Nothing to sync"]
+
+        pn_create(
+            self.hass,
+            "\n\n".join(lines),
+            title=f"NetBox sync — {match.netbox_asset_tag}",
+            notification_id=f"netbox_sync_{match.ha_device_id}",
         )

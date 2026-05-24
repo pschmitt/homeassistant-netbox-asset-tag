@@ -62,8 +62,8 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 _LOGGER.error("Failed to fetch NetBox locations: %s", err)
                 locations = []
 
-            location_map: dict[str, int] = {
-                _strip_symbols(loc["name"]): int(loc["id"])
+            location_map: dict[str, tuple[int, str]] = {
+                _strip_symbols(loc["name"]): (int(loc["id"]), loc["name"])
                 for loc in locations
                 if loc.get("name") and loc.get("id") is not None
             }
@@ -90,13 +90,15 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 }
 
                 location_id: int | None = None
+                location_name: str | None = None
                 area_name: str | None = None
                 if device_entry.area_id:
                     area = area_reg.async_get_area(device_entry.area_id)
                     if area:
                         area_name = area.name
-                        location_id = location_map.get(_strip_symbols(area.name))
-                        if location_id is not None:
+                        loc_entry = location_map.get(_strip_symbols(area.name))
+                        if loc_entry is not None:
+                            location_id, location_name = loc_entry
                             payload["location"] = location_id
                         else:
                             _LOGGER.warning(
@@ -124,6 +126,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
                             "netbox_asset_tag": match.netbox_asset_tag,
                             "changes": payload,
                             **({"ha_area": area_name} if area_name else {}),
+                            **({"location_name": location_name} if location_name else {}),
                             **(
                                 {"location_unmatched": True}
                                 if area_name and location_id is None
