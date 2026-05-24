@@ -40,6 +40,21 @@ Copy `custom_components/netbox_asset_tag` from this repository into:
 custom_components/netbox_asset_tag
 ```
 
+## NetBox API token permissions
+
+The token must belong to a NetBox user (or group) that has the following object-level permissions:
+
+| Object type | Actions |
+|---|---|
+| `dcim.device` | `view`, `change` |
+| `dcim.interface` | `view` |
+| `dcim.macaddress` | `view` |
+| `dcim.location` | `view` |
+
+`view` on `dcim.device`, `dcim.interface`, and `dcim.macaddress` is required for the coordinator to match Home Assistant devices against NetBox inventory. `view` on `dcim.location` is required to resolve area-to-location mappings for the sync service. `change` on `dcim.device` is required only for the **Sync to NetBox** service and button; omit it if you do not use that feature.
+
+> **Note:** As soon as any explicit object permission is assigned to a NetBox user, that user can only access objects covered by those permissions. If you assign fewer than the four rows above, the coordinator will fail to refresh and all entities will become unavailable.
+
 ## Configuration
 
 The integration is configured from the Home Assistant UI:
@@ -51,9 +66,11 @@ The integration is configured from the Home Assistant UI:
 
 ## Entity model
 
-- **Device**: reuses the existing Home Assistant device
-- **Entity**: one sensor per matched device
-- **State**: the NetBox asset tag, such as `#AQA-1002`
+Each matched device gets two diagnostic entities:
+
+### Asset tag sensor
+
+- **State**: the NetBox asset tag, e.g. `#AQA-1002`
 - **Attributes**:
   - `netbox_url`
   - `netbox_device_id`
@@ -61,6 +78,39 @@ The integration is configured from the Home Assistant UI:
   - `match_methods`
   - `primary_match_method`
   - `weak_match`
+  - `manual_override`
+
+### Sync to NetBox button
+
+Pressing the button calls the `netbox_asset_tag.sync_to_netbox` service scoped to that single device. See [Sync service](#sync-service) below.
+
+## Sync service
+
+The integration exposes a `netbox_asset_tag.sync_to_netbox` service that pushes the current Home Assistant device state back to NetBox:
+
+| Field synced | Source | NetBox field |
+|---|---|---|
+| Status | `disabled_by` is set → `inventory`, otherwise → `active` | `status` |
+| Location | HA area name matched against NetBox location names (emoji stripped, case-insensitive) | `location` |
+
+The service accepts an optional `device_id` list. Leave it empty to sync all coordinator-matched devices.
+
+The service returns a structured response:
+
+```yaml
+synced:
+  - ha_device_name: …
+    netbox_asset_tag: …
+    changes: {status: active, location: 16}
+    ha_area: Master Bathroom        # present when area is set
+    location_unmatched: true        # present when no NetBox location matched
+skipped:
+  - ha_device_name: …
+    reason: no_coordinator_match    # or device_not_in_registry
+errors:
+  - ha_device_name: …
+    error: …
+```
 
 ## Branding
 
