@@ -65,7 +65,7 @@
         },
         "data_description": {
           "ha_url_field": "Only used when 'HA device URL' is selected above. The custom field must already exist in NetBox.",
-          "auto_sync": "When enabled, devices are synced to NetBox automatically whenever their area, name, or disabled state changes in Home Assistant."
+          "auto_sync": "When enabled, devices are synced to NetBox automatically on every coordinator refresh and whenever their area, name, or disabled state changes in Home Assistant."
         }
       },
       "manual_overrides": {
