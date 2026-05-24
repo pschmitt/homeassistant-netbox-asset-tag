@@ -1,0 +1,7 @@
+sync_to_netbox:
+  fields:
+    device_id:
+      selector:
+        device:
+          integration: netbox_asset_tag
+          multiple: true
