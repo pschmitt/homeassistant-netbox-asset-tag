@@ -21,6 +21,24 @@
       "already_configured": "This NetBox instance is already configured."
     }
   },
+  "services": {
+    "sync_to_netbox": {
+      "name": "Sync to NetBox",
+      "description": "Sync matched Home Assistant devices to NetBox, updating their location and status (active / inventory).",
+      "fields": {
+        "device_id": {
+          "name": "Devices",
+          "description": "One or more devices to sync. Leave empty to sync all coordinator-matched devices.",
+          "selector": {
+            "device": {
+              "integration": "netbox_asset_tag",
+              "multiple": true
+            }
+          }
+        }
+      }
+    }
+  },
   "options": {
     "step": {
       "init": {

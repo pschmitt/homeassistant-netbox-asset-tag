@@ -13,6 +13,7 @@ from .api import NetBoxApiClient
 from .const import CONF_VERIFY_SSL, DOMAIN, PLATFORMS
 from .coordinator import NetBoxAssetTagCoordinator
 from .registry import async_cleanup_registry
+from .services import async_register_services, async_unregister_services
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -43,6 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
     async_cleanup_registry(hass, config_entry, coordinator.data)
+    await async_register_services(hass)
 
     @callback
     def async_cleanup_listener() -> None:
@@ -72,6 +74,7 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     """Unload a NetBox Asset Tag config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
     hass.data[DOMAIN].pop(config_entry.entry_id)
+    async_unregister_services(hass)
     return unload_ok
 
 

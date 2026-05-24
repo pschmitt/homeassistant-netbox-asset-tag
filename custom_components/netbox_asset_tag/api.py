@@ -12,6 +12,7 @@ import aiohttp
 from .const import (
     API_DEVICES_PATH,
     API_INTERFACES_PATH,
+    API_LOCATIONS_PATH,
     API_MAC_ADDRESSES_PATH,
     API_PAGE_SIZE,
     DEFAULT_REQUEST_TIMEOUT,
@@ -44,6 +45,40 @@ class NetBoxApiClient:
         self._session = session
         self.base_url = normalize_url(base_url)
         self._token = token
+
+    async def async_fetch_locations(self) -> list[dict[str, Any]]:
+        """Fetch all NetBox locations."""
+        return await self._async_paginate(API_LOCATIONS_PATH)
+
+    async def async_patch_device(
+        self, device_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """PATCH a NetBox device with the given fields."""
+        url = urljoin(f"{self.base_url}/", f"api/dcim/devices/{device_id}/")
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Token {self._token}",
+        }
+        try:
+            async with self._session.patch(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=DEFAULT_REQUEST_TIMEOUT,
+            ) as response:
+                if response.status in {401, 403}:
+                    raise NetBoxAuthenticationError(
+                        "NetBox rejected the supplied API token"
+                    )
+                if response.status >= 400:
+                    body = await response.text()
+                    raise NetBoxApiError(
+                        f"NetBox PATCH failed with status {response.status}: {body[:200]}"
+                    )
+                return await response.json()
+        except aiohttp.ClientError as err:
+            raise NetBoxApiError("Failed to reach NetBox") from err
 
     async def async_validate(self) -> dict[str, Any]:
         """Validate the configured URL and token."""

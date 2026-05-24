@@ -20,7 +20,10 @@ DEFAULT_REQUEST_TIMEOUT = 20
 API_PAGE_SIZE = 250
 API_DEVICES_PATH = "/api/dcim/devices/"
 API_INTERFACES_PATH = "/api/dcim/interfaces/"
+API_LOCATIONS_PATH = "/api/dcim/locations/"
 API_MAC_ADDRESSES_PATH = "/api/dcim/mac-addresses/"
+
+SERVICE_SYNC_TO_NETBOX = "sync_to_netbox"
 
 ATTR_MATCHED_IDENTIFIERS = "matched_identifiers"
 ATTR_MATCH_METHODS = "match_methods"
