@@ -152,7 +152,7 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
         del user_input
         return self.async_show_menu(
             step_id="init",
-            menu_options=["general", "manual_overrides"],
+            menu_options=["general", "sync_settings", "manual_overrides"],
         )
 
     async def async_step_general(
@@ -189,6 +189,24 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
                             DEFAULT_ENABLE_WEAK_MATCHING,
                         ),
                     ): BooleanSelector(),
+                }
+            ),
+        )
+
+    async def async_step_sync_settings(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Manage sync field options."""
+        if user_input is not None:
+            self._options.update(user_input)
+            self._options.setdefault(CONF_MANUAL_OVERRIDES, self._get_manual_overrides())
+            return self.async_create_entry(title="", data=self._options)
+
+        return self.async_show_form(
+            step_id="sync_settings",
+            data_schema=vol.Schema(
+                {
                     vol.Required(
                         CONF_SYNC_FIELDS,
                         default=self._options.get(CONF_SYNC_FIELDS, DEFAULT_SYNC_FIELDS),

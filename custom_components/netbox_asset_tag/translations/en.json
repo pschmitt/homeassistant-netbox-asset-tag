@@ -45,14 +45,20 @@
         "title": "⚙️ NetBox Asset Tag options",
         "menu_options": {
           "general": "⚙️ General settings",
+          "sync_settings": "🔄 Sync settings",
           "manual_overrides": "🔀 Manage manual overrides"
         }
       },
       "general": {
-        "title": "⚙️ NetBox Asset Tag options",
+        "title": "⚙️ General settings",
         "data": {
           "scan_interval": "⏱️ Update interval in seconds",
-          "enable_weak_matching": "🧪 Enable weaker serial matching from raw integration identifiers",
+          "enable_weak_matching": "🧪 Enable weaker serial matching from raw integration identifiers"
+        }
+      },
+      "sync_settings": {
+        "title": "🔄 Sync settings",
+        "data": {
           "sync_fields": "🔄 Fields to sync to NetBox"
         }
       },
