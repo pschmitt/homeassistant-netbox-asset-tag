@@ -101,6 +101,16 @@ You can deselect individual fields in **Sync settings → Fields to sync to NetB
 
 The service accepts an optional `device_id` list. Leave it empty to sync all coordinator-matched devices.
 
+## Auto-sync
+
+Enable **Auto-sync on device changes** under **Sync settings** to have devices pushed to NetBox automatically whenever any of the following changes in Home Assistant:
+
+- area assignment (→ location)
+- device name or user-defined name (→ name)
+- disabled state (→ status)
+
+Auto-sync is off by default. It reuses the same sync logic and respects the **Fields to sync** selection.
+
 The service returns a structured response:
 
 ```yaml

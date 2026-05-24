@@ -60,10 +60,12 @@
         "title": "🔄 Sync settings",
         "data": {
           "sync_fields": "🔄 Fields to sync to NetBox",
-          "ha_url_field": "🔗 NetBox custom field name for HA device URL"
+          "ha_url_field": "🔗 NetBox custom field name for HA device URL",
+          "auto_sync": "⚡ Auto-sync on device changes"
         },
         "data_description": {
-          "ha_url_field": "Only used when 'HA device URL' is selected above. The custom field must already exist in NetBox."
+          "ha_url_field": "Only used when 'HA device URL' is selected above. The custom field must already exist in NetBox.",
+          "auto_sync": "When enabled, devices are synced to NetBox automatically whenever their area, name, or disabled state changes in Home Assistant."
         }
       },
       "manual_overrides": {

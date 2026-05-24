@@ -10,6 +10,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 from .api import NetBoxApiClient
+from .auto_sync import async_setup_auto_sync
 from .const import CONF_VERIFY_SSL, DOMAIN, PLATFORMS
 from .coordinator import NetBoxAssetTagCoordinator
 from .registry import async_cleanup_registry
@@ -53,6 +54,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     config_entry.async_on_unload(coordinator.async_add_listener(async_cleanup_listener))
     config_entry.async_on_unload(config_entry.add_update_listener(async_update_listener))
+    async_setup_auto_sync(hass, config_entry)
 
     @callback
     def _on_component_loaded(event: Event) -> None:

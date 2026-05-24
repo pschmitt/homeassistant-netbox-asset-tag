@@ -29,11 +29,13 @@ from homeassistant.helpers.selector import (
 
 from .api import NetBoxApiClient, normalize_url
 from .const import (
+    CONF_AUTO_SYNC,
     CONF_HA_URL_FIELD,
     CONF_MANUAL_OVERRIDES,
     CONF_ENABLE_WEAK_MATCHING,
     CONF_SYNC_FIELDS,
     CONF_VERIFY_SSL,
+    DEFAULT_AUTO_SYNC,
     DEFAULT_ENABLE_WEAK_MATCHING,
     DEFAULT_HA_URL_FIELD,
     DEFAULT_SCAN_INTERVAL,
@@ -115,6 +117,7 @@ class NetBoxAssetTagConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_ENABLE_WEAK_MATCHING: DEFAULT_ENABLE_WEAK_MATCHING,
                     CONF_SYNC_FIELDS: DEFAULT_SYNC_FIELDS,
                     CONF_HA_URL_FIELD: DEFAULT_HA_URL_FIELD,
+                    CONF_AUTO_SYNC: DEFAULT_AUTO_SYNC,
                 }
                 title = user_input.get(CONF_NAME) or info["title"]
                 return self.async_create_entry(title=title, data=data, options=options)
@@ -230,6 +233,10 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
                         CONF_HA_URL_FIELD,
                         default=self._options.get(CONF_HA_URL_FIELD, DEFAULT_HA_URL_FIELD),
                     ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
+                    vol.Required(
+                        CONF_AUTO_SYNC,
+                        default=self._options.get(CONF_AUTO_SYNC, DEFAULT_AUTO_SYNC),
+                    ): BooleanSelector(),
                 }
             ),
         )
