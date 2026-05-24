@@ -13,8 +13,13 @@ from .models import HomeAssistantDeviceMatch
 
 
 def get_asset_tag_unique_id(entry_id: str, attached_device_key: str) -> str:
-    """Return the stable unique ID for one asset-tag entity."""
+    """Return the stable unique ID for one asset-tag sensor entity."""
     return f"{entry_id}_{attached_device_key}"
+
+
+def get_sync_button_unique_id(entry_id: str, attached_device_key: str) -> str:
+    """Return the stable unique ID for one sync-button entity."""
+    return f"{entry_id}_{attached_device_key}_sync"
 
 
 @callback
@@ -27,6 +32,9 @@ def async_cleanup_registry(
     entity_registry = er.async_get(hass)
     current_unique_ids = {
         get_asset_tag_unique_id(config_entry.entry_id, match.attached_device_key)
+        for match in matches.values()
+    } | {
+        get_sync_button_unique_id(config_entry.entry_id, match.attached_device_key)
         for match in matches.values()
     }
 

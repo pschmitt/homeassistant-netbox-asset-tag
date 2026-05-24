@@ -5,7 +5,7 @@ from __future__ import annotations
 from homeassistant.const import Platform
 
 DOMAIN = "netbox_asset_tag"
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.SENSOR]
 
 CONF_VERIFY_SSL = "verify_ssl"
 CONF_ENABLE_WEAK_MATCHING = "enable_weak_matching"
