@@ -13,7 +13,15 @@ from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 
-from .const import DOMAIN, SERVICE_SYNC_TO_NETBOX
+from .const import (
+    CONF_SYNC_FIELDS,
+    DEFAULT_SYNC_FIELDS,
+    DOMAIN,
+    SERVICE_SYNC_TO_NETBOX,
+    SYNC_FIELD_LOCATION,
+    SYNC_FIELD_NAME,
+    SYNC_FIELD_STATUS,
+)
 from .exceptions import NetBoxApiError
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,17 +64,22 @@ async def async_register_services(hass: HomeAssistant) -> None:
             if coordinator is None or client is None or not coordinator.data:
                 continue
 
-            try:
-                locations = await client.async_fetch_locations()
-            except NetBoxApiError as err:
-                _LOGGER.error("Failed to fetch NetBox locations: %s", err)
-                locations = []
+            sync_fields: list[str] = list(
+                coordinator.config_entry.options.get(CONF_SYNC_FIELDS, DEFAULT_SYNC_FIELDS)
+            )
 
-            location_map: dict[str, tuple[int, str]] = {
-                _strip_symbols(loc["name"]): (int(loc["id"]), loc["name"])
-                for loc in locations
-                if loc.get("name") and loc.get("id") is not None
-            }
+            location_map: dict[str, tuple[int, str]] = {}
+            if SYNC_FIELD_LOCATION in sync_fields:
+                try:
+                    locations = await client.async_fetch_locations()
+                except NetBoxApiError as err:
+                    _LOGGER.error("Failed to fetch NetBox locations: %s", err)
+                    locations = []
+                location_map = {
+                    _strip_symbols(loc["name"]): (int(loc["id"]), loc["name"])
+                    for loc in locations
+                    if loc.get("name") and loc.get("id") is not None
+                }
 
             for match in coordinator.data.values():
                 if target_ids and match.ha_device_id not in target_ids:
@@ -85,14 +98,15 @@ async def async_register_services(hass: HomeAssistant) -> None:
                     )
                     continue
 
-                payload: dict[str, Any] = {
-                    "status": "inventory" if device_entry.disabled_by else "active",
-                }
+                payload: dict[str, Any] = {}
+
+                if SYNC_FIELD_STATUS in sync_fields:
+                    payload["status"] = "inventory" if device_entry.disabled_by else "active"
 
                 location_id: int | None = None
                 location_name: str | None = None
                 area_name: str | None = None
-                if device_entry.area_id:
+                if SYNC_FIELD_LOCATION in sync_fields and device_entry.area_id:
                     area = area_reg.async_get_area(device_entry.area_id)
                     if area:
                         area_name = area.name
@@ -108,6 +122,11 @@ async def async_register_services(hass: HomeAssistant) -> None:
                                 _strip_symbols(area.name),
                                 sorted(location_map.keys()),
                             )
+
+                if SYNC_FIELD_NAME in sync_fields:
+                    ha_name = device_entry.name_by_user or device_entry.name
+                    if ha_name:
+                        payload["name"] = ha_name
 
                 try:
                     await client.async_patch_device(match.netbox_device_id, payload)

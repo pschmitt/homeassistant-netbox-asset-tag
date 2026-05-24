@@ -92,6 +92,9 @@ The integration exposes a `netbox_asset_tag.sync_to_netbox` service that pushes 
 |---|---|---|
 | Status | `disabled_by` is set → `inventory`, otherwise → `active` | `status` |
 | Location | HA area name matched against NetBox location names (emoji stripped, case-insensitive) | `location` |
+| Name | `name_by_user` if set, otherwise `name` from HA device registry | `name` |
+
+All three fields are synced by default. You can deselect individual fields under **Settings → Devices & services → NetBox Asset Tag → Configure → General settings → Fields to sync to NetBox**.
 
 The service accepts an optional `device_id` list. Leave it empty to sync all coordinator-matched devices.
 

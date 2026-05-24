@@ -107,20 +107,25 @@ class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
             changes = entry.get("changes", {})
             parts: list[str] = []
             if "status" in changes:
-                parts.append(f"status → **{changes['status']}**")
+                parts.append(f"- status → **{changes['status']}**")
+            if "name" in changes:
+                parts.append(f"- name → **{changes['name']}**")
             loc_name = entry.get("location_name")
             if loc_name:
-                parts.append(f"location → **{loc_name}**")
+                parts.append(f"- location → **{loc_name}**")
             elif entry.get("location_unmatched"):
-                parts.append(f"location → no match for area *{entry.get('ha_area', '?')}*")
-            lines.append("✅ " + (", ".join(parts) if parts else "synced"))
+                parts.append(f"- location → no match for area *{entry.get('ha_area', '?')}*")
+            if parts:
+                lines.append("✅ Synced:\n" + "\n".join(parts))
+            else:
+                lines.append("✅ Synced (no changes)")
 
         for entry in errors:
-            lines.append(f"❌ {entry.get('error', 'unknown error')}")
+            lines.append(f"❌ Error: {entry.get('error', 'unknown error')}")
 
         for entry in skipped:
-            reason = entry.get("reason", "skipped")
-            lines.append(f"⚠️ {reason.replace('_', ' ')}")
+            reason = entry.get("reason", "skipped").replace("_", " ")
+            lines.append(f"⚠️ Skipped: {reason}")
 
         if not lines:
             lines = ["Nothing to sync"]

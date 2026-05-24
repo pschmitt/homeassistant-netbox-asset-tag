@@ -31,12 +31,17 @@ from .api import NetBoxApiClient, normalize_url
 from .const import (
     CONF_MANUAL_OVERRIDES,
     CONF_ENABLE_WEAK_MATCHING,
+    CONF_SYNC_FIELDS,
     CONF_VERIFY_SSL,
     DEFAULT_ENABLE_WEAK_MATCHING,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SYNC_FIELDS,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
     MIN_SCAN_INTERVAL,
+    SYNC_FIELD_LOCATION,
+    SYNC_FIELD_NAME,
+    SYNC_FIELD_STATUS,
 )
 from .exceptions import NetBoxApiError, NetBoxAuthenticationError
 from .models import NetBoxInventory, freeze_registry_entries, get_attached_device_key
@@ -105,6 +110,7 @@ class NetBoxAssetTagConfigFlow(ConfigFlow, domain=DOMAIN):
                 options = {
                     CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
                     CONF_ENABLE_WEAK_MATCHING: DEFAULT_ENABLE_WEAK_MATCHING,
+                    CONF_SYNC_FIELDS: DEFAULT_SYNC_FIELDS,
                 }
                 title = user_input.get(CONF_NAME) or info["title"]
                 return self.async_create_entry(title=title, data=data, options=options)
@@ -183,6 +189,20 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
                             DEFAULT_ENABLE_WEAK_MATCHING,
                         ),
                     ): BooleanSelector(),
+                    vol.Required(
+                        CONF_SYNC_FIELDS,
+                        default=self._options.get(CONF_SYNC_FIELDS, DEFAULT_SYNC_FIELDS),
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                SelectOptionDict(value=SYNC_FIELD_STATUS, label="Status (active / inventory)"),
+                                SelectOptionDict(value=SYNC_FIELD_LOCATION, label="Location (from HA area)"),
+                                SelectOptionDict(value=SYNC_FIELD_NAME, label="Name (from HA device name)"),
+                            ],
+                            multiple=True,
+                            mode=SelectSelectorMode.LIST,
+                        )
+                    ),
                 }
             ),
         )
