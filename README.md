@@ -95,7 +95,7 @@ The integration exposes a `netbox_asset_tag.sync_to_netbox` service that pushes 
 | Name | `name_by_user` if set, otherwise `name` from HA device registry | `name` |
 | HA device URL | `{ha_external_url}/config/devices/device/{device_id}` | custom field (configurable, default `homeassistant_url`) |
 
-Status, location, and name are synced by default. HA device URL is opt-in — enable it under **Settings → Devices & services → NetBox Asset Tag → Configure → Sync settings**, then select **HA device URL**. The custom field must already exist in NetBox. Use `ha_url_field` in Sync settings to change the custom field name.
+All four fields are synced by default. The `homeassistant_url` custom field must already exist in NetBox for the HA device URL to be written (see [NetBox setup](#netbox-setup) below). Use `ha_url_field` in Sync settings to change the custom field name. Deselect individual fields under **Settings → Devices & services → NetBox Asset Tag → Configure → Sync settings**.
 
 You can deselect individual fields in **Sync settings → Fields to sync to NetBox**.
 
