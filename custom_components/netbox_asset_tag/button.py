@@ -146,7 +146,8 @@ class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
         if not lines:
             lines = ["Nothing to sync"]
 
-        lines.append(f"[Open in NetBox]({match.netbox_url})")
+        nb_icon = "https://raw.githubusercontent.com/netbox-community/netbox/main/netbox/project-static/img/netbox_icon.svg"
+        lines.append(f'<img src="{nb_icon}" width="16" height="16"> [Open in NetBox]({match.netbox_url})')
 
         pn_create(
             self.hass,
