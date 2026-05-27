@@ -50,6 +50,10 @@ class NetBoxApiClient:
         """Fetch all NetBox locations."""
         return await self._async_paginate(API_LOCATIONS_PATH)
 
+    async def async_get_device(self, device_id: int) -> dict[str, Any]:
+        """GET one NetBox device by ID."""
+        return await self._async_get_json(f"api/dcim/devices/{device_id}/")
+
     async def async_patch_device(
         self, device_id: int, payload: dict[str, Any]
     ) -> dict[str, Any]:

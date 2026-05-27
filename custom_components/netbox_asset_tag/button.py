@@ -106,15 +106,27 @@ class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
         for entry in synced:
             changes = entry.get("changes", {})
             parts: list[str] = []
+
+            def _diff(ch: dict) -> str:
+                old, new = ch.get("old"), ch["new"]
+                if old is not None and old != new:
+                    return f"~~{old}~~ → **{new}**"
+                return f"**{new}**"
+
             if "status" in changes:
-                parts.append(f"- status → **{changes['status']}**")
+                parts.append(f"- status: {_diff(changes['status'])}")
             if "name" in changes:
-                parts.append(f"- name → **{changes['name']}**")
+                parts.append(f"- name: {_diff(changes['name'])}")
             if "ha_url" in changes:
-                parts.append(f"- ha_url → {changes['ha_url']}")
+                ch = changes["ha_url"]
+                parts.append(f"- ha_url → {ch['new']}")
             loc_name = entry.get("location_name")
             if loc_name:
-                parts.append(f"- location → **{loc_name}**")
+                old_loc = entry.get("old_location_name")
+                if old_loc and old_loc != loc_name:
+                    parts.append(f"- location: ~~{old_loc}~~ → **{loc_name}**")
+                else:
+                    parts.append(f"- location: **{loc_name}**")
             elif entry.get("location_unmatched"):
                 parts.append(f"- location → no match for area *{entry.get('ha_area', '?')}*")
             if parts:
@@ -131,6 +143,8 @@ class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
 
         if not lines:
             lines = ["Nothing to sync"]
+
+        lines.append(f"[Open in NetBox]({match.netbox_url})")
 
         pn_create(
             self.hass,

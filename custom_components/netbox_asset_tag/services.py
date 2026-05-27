@@ -149,6 +149,12 @@ async def async_register_services(hass: HomeAssistant) -> None:
                             match.ha_device_name,
                         )
 
+                # Fetch current NetBox state so we can show old → new in notifications
+                try:
+                    current_nb = await client.async_get_device(match.netbox_device_id)
+                except NetBoxApiError:
+                    current_nb = {}
+
                 try:
                     await client.async_patch_device(match.netbox_device_id, payload)
                     _LOGGER.info(
@@ -158,11 +164,36 @@ async def async_register_services(hass: HomeAssistant) -> None:
                         match.netbox_asset_tag,
                         payload,
                     )
-                    changes_flat: dict[str, Any] = {
-                        k: v for k, v in payload.items() if k != "custom_fields"
-                    }
+                    changes_flat: dict[str, Any] = {}
+                    for k, v in payload.items():
+                        if k in ("custom_fields", "location"):
+                            continue
+                        change: dict[str, Any] = {"new": v}
+                        if k == "status":
+                            nb_status = current_nb.get("status") or {}
+                            old = nb_status.get("value") if isinstance(nb_status, dict) else None
+                            if old is not None:
+                                change["old"] = old
+                        elif k == "name":
+                            old = current_nb.get("name")
+                            if old is not None:
+                                change["old"] = old
+                        changes_flat[k] = change
                     if ha_device_url is not None:
-                        changes_flat["ha_url"] = ha_device_url
+                        ha_url_field = coordinator.config_entry.options.get(
+                            CONF_HA_URL_FIELD, DEFAULT_HA_URL_FIELD
+                        )
+                        old_url = (current_nb.get("custom_fields") or {}).get(ha_url_field)
+                        url_change: dict[str, Any] = {"new": ha_device_url}
+                        if old_url is not None:
+                            url_change["old"] = old_url
+                        changes_flat["ha_url"] = url_change
+
+                    old_location_name: str | None = None
+                    if location_name is not None:
+                        nb_loc = current_nb.get("location") or {}
+                        old_location_name = nb_loc.get("name") if isinstance(nb_loc, dict) else None
+
                     synced.append(
                         {
                             "ha_device_id": match.ha_device_id,
@@ -172,6 +203,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
                             "changes": changes_flat,
                             **({"ha_area": area_name} if area_name else {}),
                             **({"location_name": location_name} if location_name else {}),
+                            **({"old_location_name": old_location_name} if old_location_name else {}),
                             **(
                                 {"location_unmatched": True}
                                 if area_name and location_id is None
