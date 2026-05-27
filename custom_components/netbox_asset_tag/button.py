@@ -103,36 +103,60 @@ class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
 
         lines: list[str] = []
 
+        _STATUS_EMOJI: dict[str, str] = {
+            "active": "🟢",
+            "planned": "🔵",
+            "staged": "🟡",
+            "failed": "🔴",
+            "offline": "🔴",
+            "decommissioning": "🟠",
+            "inventory": "⚫",
+        }
+
+        def _se(val: str) -> str:
+            return _STATUS_EMOJI.get(val, "⚪")
+
+        def _diff(ch: dict) -> str:
+            old, new = ch.get("old"), ch["new"]
+            if old is not None and old == new:
+                return f"**{new}** *(unchanged)*"
+            if old is not None:
+                return f"~~{old}~~ → **{new}**"
+            return f"**{new}**"
+
+        def _status_diff(ch: dict) -> str:
+            old, new = ch.get("old"), ch["new"]
+            if old is not None and old == new:
+                return f"{_se(new)} **{new}** *(unchanged)*"
+            if old is not None:
+                return f"{_se(old)} ~~{old}~~ → {_se(new)} **{new}**"
+            return f"{_se(new)} **{new}**"
+
         for entry in synced:
             changes = entry.get("changes", {})
             parts: list[str] = []
 
-            def _diff(ch: dict) -> str:
-                old, new = ch.get("old"), ch["new"]
-                if old is not None and old != new:
-                    return f"~~{old}~~ → **{new}**"
-                return f"**{new}**"
-
-            if "status" in changes:
-                parts.append(f"- status: {_diff(changes['status'])}")
             if "name" in changes:
-                parts.append(f"- name: {_diff(changes['name'])}")
+                parts.append(f"- 📛 name: {_diff(changes['name'])}")
             if "serial" in changes:
-                parts.append(f"- serial: {_diff(changes['serial'])}")
-            if "ha_url" in changes:
-                ch = changes["ha_url"]
-                parts.append(f"- ha_url → {ch['new']}")
+                parts.append(f"- 🏷️ serial: {_diff(changes['serial'])}")
+            if "status" in changes:
+                parts.append(f"- 📡 status: {_status_diff(changes['status'])}")
             loc_name = entry.get("location_name")
             if loc_name:
                 old_loc = entry.get("old_location_name")
                 if old_loc and old_loc != loc_name:
-                    parts.append(f"- location: ~~{old_loc}~~ → **{loc_name}**")
+                    parts.append(f"- 📌 location: ~~{old_loc}~~ → **{loc_name}**")
+                elif old_loc == loc_name:
+                    parts.append(f"- 📌 location: **{loc_name}** *(unchanged)*")
                 else:
-                    parts.append(f"- location: **{loc_name}**")
+                    parts.append(f"- 📌 location: **{loc_name}**")
             elif entry.get("location_unmatched"):
-                parts.append(f"- location → no match for area *{entry.get('ha_area', '?')}*")
+                parts.append(f"- 📌 location → no match for area *{entry.get('ha_area', '?')}*")
+            if "ha_url" in changes:
+                parts.append(f"- 🔗 ha_url → {changes['ha_url']['new']}")
             if parts:
-                lines.append("✅ Synced:\n" + "\n".join(parts))
+                lines.append("✅ Synced\n" + "\n".join(parts))
             else:
                 lines.append("✅ Synced (no changes)")
 
