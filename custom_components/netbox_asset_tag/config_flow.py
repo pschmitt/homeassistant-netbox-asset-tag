@@ -46,6 +46,7 @@ from .const import (
     SYNC_FIELD_HA_URL,
     SYNC_FIELD_LOCATION,
     SYNC_FIELD_NAME,
+    SYNC_FIELD_SERIAL,
     SYNC_FIELD_STATUS,
 )
 from .exceptions import NetBoxApiError, NetBoxAuthenticationError
@@ -224,6 +225,7 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
                                 SelectOptionDict(value=SYNC_FIELD_LOCATION, label="Location (from HA area)"),
                                 SelectOptionDict(value=SYNC_FIELD_NAME, label="Name (from HA device name)"),
                                 SelectOptionDict(value=SYNC_FIELD_HA_URL, label="HA device URL (NetBox custom field)"),
+                                SelectOptionDict(value=SYNC_FIELD_SERIAL, label="Serial number (only when HA reports one)"),
                             ],
                             multiple=True,
                             mode=SelectSelectorMode.LIST,

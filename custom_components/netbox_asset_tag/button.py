@@ -117,6 +117,8 @@ class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
                 parts.append(f"- status: {_diff(changes['status'])}")
             if "name" in changes:
                 parts.append(f"- name: {_diff(changes['name'])}")
+            if "serial" in changes:
+                parts.append(f"- serial: {_diff(changes['serial'])}")
             if "ha_url" in changes:
                 ch = changes["ha_url"]
                 parts.append(f"- ha_url → {ch['new']}")

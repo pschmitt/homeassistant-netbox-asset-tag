@@ -23,6 +23,7 @@ from .const import (
     SYNC_FIELD_HA_URL,
     SYNC_FIELD_LOCATION,
     SYNC_FIELD_NAME,
+    SYNC_FIELD_SERIAL,
     SYNC_FIELD_STATUS,
 )
 from .exceptions import NetBoxApiError
@@ -131,6 +132,16 @@ async def async_register_services(hass: HomeAssistant) -> None:
                     if ha_name:
                         payload["name"] = ha_name
 
+                if SYNC_FIELD_SERIAL in sync_fields:
+                    ha_serial = device_entry.serial_number
+                    if ha_serial:
+                        payload["serial"] = ha_serial
+                    else:
+                        _LOGGER.debug(
+                            "Skipping serial sync for %r: HA reports no serial number",
+                            match.ha_device_name,
+                        )
+
                 ha_device_url: str | None = None
                 if SYNC_FIELD_HA_URL in sync_fields:
                     base_url = hass.config.external_url or hass.config.internal_url
@@ -176,6 +187,10 @@ async def async_register_services(hass: HomeAssistant) -> None:
                                 change["old"] = old
                         elif k == "name":
                             old = current_nb.get("name")
+                            if old is not None:
+                                change["old"] = old
+                        elif k == "serial":
+                            old = current_nb.get("serial") or None
                             if old is not None:
                                 change["old"] = old
                         changes_flat[k] = change
