@@ -116,6 +116,7 @@ class NetBoxApiClient:
                 serial=normalize_serial(item.get("serial")),
                 zigbee_ieee=normalize_identifier(custom_fields.get("zigbee_ieee")),
                 thread_eui64=normalize_identifier(custom_fields.get("thread_eui64")),
+                lorawan_eui=normalize_serial(custom_fields.get("lorawan_eui")),
                 device_identifiers=parse_device_identifiers(
                     custom_fields.get("device_identifier")
                 ),
@@ -126,6 +127,7 @@ class NetBoxApiClient:
                 record.serial,
                 record.zigbee_ieee,
                 record.thread_eui64,
+                record.lorawan_eui,
                 *record.device_identifiers,
             ):
                 if identifier:
@@ -196,6 +198,8 @@ class NetBoxApiClient:
                 return "zigbee"
             if device.thread_eui64 == identifier:
                 return "thread"
+            if device.lorawan_eui == identifier:
+                return "lorawan"
             if identifier in device.device_identifiers:
                 return "device_identifier"
 

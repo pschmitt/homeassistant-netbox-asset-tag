@@ -118,6 +118,7 @@ class NetBoxDeviceRecord:
     serial: str | None
     zigbee_ieee: str | None
     thread_eui64: str | None
+    lorawan_eui: str | None
     device_identifiers: tuple[str, ...]
 
 

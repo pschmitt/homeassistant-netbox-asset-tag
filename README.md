@@ -19,6 +19,7 @@ The integration matches Home Assistant devices against NetBox using normalized h
 - NetBox device custom fields:
   - `zigbee_ieee`
   - `thread_eui64`
+  - `lorawan_eui`
 - NetBox interface MAC addresses on physical devices
 
 When multiple candidate identifiers point at different NetBox devices, the Home Assistant device is ignored instead of guessing.
