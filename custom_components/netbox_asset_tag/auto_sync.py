@@ -12,7 +12,12 @@ from .coordinator import NetBoxAssetTagCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-_WATCHED_FIELDS: frozenset[str] = frozenset({"area_id", "disabled_by", "name", "name_by_user"})
+_SYNC_WATCHED_FIELDS: frozenset[str] = frozenset(
+    {"area_id", "disabled_by", "name", "name_by_user"}
+)
+_MATCH_WATCHED_FIELDS: frozenset[str] = frozenset(
+    {"connections", "identifiers", "serial_number"}
+)
 
 
 @callback
@@ -21,24 +26,42 @@ def async_setup_auto_sync(
     config_entry: ConfigEntry,
     coordinator: NetBoxAssetTagCoordinator,
 ) -> None:
-    """Register listeners that trigger sync on device changes and coordinator refreshes."""
+    """Register listeners for device matching and NetBox sync."""
 
     def _is_enabled() -> bool:
         return config_entry.options.get(CONF_AUTO_SYNC, DEFAULT_AUTO_SYNC)
 
     @callback
     def _handle_device_registry_updated(event: Event) -> None:
+        action = event.data.get("action")
+        changes: dict = event.data.get("changes", {})
+        device_id: str | None = event.data.get("device_id")
+
+        if action == "create" or (
+            action == "update" and _MATCH_WATCHED_FIELDS.intersection(changes)
+        ):
+            _LOGGER.debug(
+                "Refreshing NetBox device matches after Home Assistant device %s: %s",
+                action,
+                device_id,
+            )
+            config_entry.async_create_background_task(
+                hass,
+                coordinator.async_request_refresh(),
+                f"netbox_asset_tag_device_match_refresh_{device_id or 'unknown'}",
+            )
+
         if not _is_enabled():
             return
 
-        if event.data.get("action") != "update":
+        if action != "update":
             return
 
-        changes: dict = event.data.get("changes", {})
-        if not _WATCHED_FIELDS.intersection(changes):
+        if not _SYNC_WATCHED_FIELDS.intersection(changes):
             return
 
-        device_id: str = event.data["device_id"]
+        if device_id is None:
+            return
 
         if not coordinator.data:
             return
@@ -48,7 +71,7 @@ def async_setup_auto_sync(
                 _LOGGER.debug(
                     "Auto-sync triggered for %r (changed: %s)",
                     match.ha_device_name,
-                    sorted(_WATCHED_FIELDS.intersection(changes)),
+                    sorted(_SYNC_WATCHED_FIELDS.intersection(changes)),
                 )
                 config_entry.async_create_background_task(
                     hass,
