@@ -67,7 +67,7 @@ The integration is configured from the Home Assistant UI:
 
 ## Entity model
 
-Each matched device gets two diagnostic entities:
+Each matched device gets diagnostic entities:
 
 ### Asset tag sensor
 
@@ -85,6 +85,18 @@ Each matched device gets two diagnostic entities:
 
 Pressing the button calls the `netbox_asset_tag.sync_to_netbox` service scoped to that single device. See [Sync service](#sync-service) below.
 
+### Write asset tag to device button
+
+Compatible physical devices also get a **Write asset tag to device** button. Pressing it stores the matched NetBox asset tag on the device itself.
+
+This feature is enabled by default and can be disabled under **General settings → Enable writing asset tags to compatible devices**.
+
+Current device writer backend:
+
+| Device/integration | Compatibility | Storage |
+|---|---|---|
+| Shelly | Loaded RPC-generation, non-sleeping Shelly devices with KVS support | KVS key `netbox-asset-tag` |
+
 ## Sync service
 
 The integration exposes a `netbox_asset_tag.sync_to_netbox` service that pushes the current Home Assistant device state back to NetBox:
@@ -101,6 +113,28 @@ All four fields are synced by default. The `homeassistant_url` custom field must
 You can deselect individual fields in **Sync settings → Fields to sync to NetBox**.
 
 The service accepts an optional `device_id` list. Leave it empty to sync all coordinator-matched devices.
+
+## Device asset-tag write service
+
+The integration exposes a `netbox_asset_tag.write_asset_tag_to_device` service that writes the matched NetBox asset tag to compatible physical devices. It uses the same coordinator matching as the sensor and buttons.
+
+The service accepts an optional `device_id` list. Leave it empty to write all coordinator-matched compatible devices.
+
+The service returns a structured response:
+
+```yaml
+written:
+  - ha_device_name: …
+    netbox_asset_tag: "#SLY-0001"
+    backend: shelly
+    key: netbox-asset-tag
+skipped:
+  - ha_device_name: …
+    reason: device_not_supported
+errors:
+  - ha_device_name: …
+    error: …
+```
 
 ## Auto-sync
 

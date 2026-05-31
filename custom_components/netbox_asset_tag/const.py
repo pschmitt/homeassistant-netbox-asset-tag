@@ -13,6 +13,7 @@ CONF_MANUAL_OVERRIDES = "manual_overrides"
 CONF_SYNC_FIELDS = "sync_fields"
 CONF_HA_URL_FIELD = "ha_url_field"
 CONF_AUTO_SYNC = "auto_sync"
+CONF_WRITE_ASSET_TAG_TO_DEVICES = "write_asset_tag_to_devices"
 
 SYNC_FIELD_STATUS = "status"
 SYNC_FIELD_LOCATION = "location"
@@ -27,6 +28,8 @@ MIN_SCAN_INTERVAL = 300
 DEFAULT_VERIFY_SSL = True
 DEFAULT_ENABLE_WEAK_MATCHING = False
 DEFAULT_AUTO_SYNC = False
+DEFAULT_WRITE_ASSET_TAG_TO_DEVICES = True
+DEFAULT_DEVICE_ASSET_TAG_KEY = "netbox-asset-tag"
 
 DEFAULT_REQUEST_TIMEOUT = 20
 API_PAGE_SIZE = 250
@@ -36,6 +39,7 @@ API_LOCATIONS_PATH = "/api/dcim/locations/"
 API_MAC_ADDRESSES_PATH = "/api/dcim/mac-addresses/"
 
 SERVICE_SYNC_TO_NETBOX = "sync_to_netbox"
+SERVICE_WRITE_ASSET_TAG_TO_DEVICE = "write_asset_tag_to_device"
 
 ATTR_MATCHED_IDENTIFIERS = "matched_identifiers"
 ATTR_MATCH_METHODS = "match_methods"

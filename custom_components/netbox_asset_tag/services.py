@@ -16,21 +16,34 @@ from homeassistant.helpers import device_registry as dr
 from .const import (
     CONF_HA_URL_FIELD,
     CONF_SYNC_FIELDS,
+    CONF_WRITE_ASSET_TAG_TO_DEVICES,
     DEFAULT_HA_URL_FIELD,
     DEFAULT_SYNC_FIELDS,
+    DEFAULT_WRITE_ASSET_TAG_TO_DEVICES,
     DOMAIN,
     SERVICE_SYNC_TO_NETBOX,
+    SERVICE_WRITE_ASSET_TAG_TO_DEVICE,
     SYNC_FIELD_HA_URL,
     SYNC_FIELD_LOCATION,
     SYNC_FIELD_NAME,
     SYNC_FIELD_SERIAL,
     SYNC_FIELD_STATUS,
 )
+from .device_writers import (
+    DeviceAssetTagWriterFailed,
+    DeviceAssetTagWriterUnsupported,
+    async_write_asset_tag_to_device,
+)
 from .exceptions import NetBoxApiError
 
 _LOGGER = logging.getLogger(__name__)
 
 SYNC_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Optional("device_id", default=[]): vol.All(cv.ensure_list, [cv.string]),
+    }
+)
+WRITE_TO_DEVICE_SERVICE_SCHEMA = vol.Schema(
     {
         vol.Optional("device_id", default=[]): vol.All(cv.ensure_list, [cv.string]),
     }
@@ -45,8 +58,6 @@ def _strip_symbols(name: str) -> str:
 
 async def async_register_services(hass: HomeAssistant) -> None:
     """Register integration services (idempotent — safe to call on every entry load)."""
-    if hass.services.has_service(DOMAIN, SERVICE_SYNC_TO_NETBOX):
-        return
 
     async def _handle_sync_to_netbox(call: ServiceCall) -> ServiceResponse:
         target_ids: set[str] = set(call.data.get("device_id") or [])
@@ -268,13 +279,129 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
         return {"synced": synced, "skipped": skipped, "errors": errors}
 
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SYNC_TO_NETBOX,
-        _handle_sync_to_netbox,
-        schema=SYNC_SERVICE_SCHEMA,
-        supports_response=SupportsResponse.OPTIONAL,
-    )
+    async def _handle_write_asset_tag_to_device(call: ServiceCall) -> ServiceResponse:
+        target_ids: set[str] = set(call.data.get("device_id") or [])
+        matched_ids: set[str] = set()
+
+        device_reg = dr.async_get(hass)
+
+        written: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+
+        for entry_data in hass.data.get(DOMAIN, {}).values():
+            if not isinstance(entry_data, dict):
+                continue
+            coordinator = entry_data.get("coordinator")
+            if coordinator is None or not coordinator.data:
+                continue
+
+            if not coordinator.config_entry.options.get(
+                CONF_WRITE_ASSET_TAG_TO_DEVICES,
+                DEFAULT_WRITE_ASSET_TAG_TO_DEVICES,
+            ):
+                for match in coordinator.data.values():
+                    if target_ids and match.ha_device_id not in target_ids:
+                        continue
+                    matched_ids.add(match.ha_device_id)
+                    skipped.append(
+                        {
+                            "ha_device_id": match.ha_device_id,
+                            "ha_device_name": match.ha_device_name,
+                            "netbox_asset_tag": match.netbox_asset_tag,
+                            "reason": "device_asset_tag_writes_disabled",
+                        }
+                    )
+                continue
+
+            for match in coordinator.data.values():
+                if target_ids and match.ha_device_id not in target_ids:
+                    continue
+
+                matched_ids.add(match.ha_device_id)
+                try:
+                    result = await async_write_asset_tag_to_device(
+                        hass,
+                        match.ha_device_id,
+                        match.netbox_asset_tag,
+                    )
+                except DeviceAssetTagWriterUnsupported:
+                    skipped.append(
+                        {
+                            "ha_device_id": match.ha_device_id,
+                            "ha_device_name": match.ha_device_name,
+                            "netbox_asset_tag": match.netbox_asset_tag,
+                            "reason": "device_not_supported",
+                        }
+                    )
+                except DeviceAssetTagWriterFailed as err:
+                    _LOGGER.error(
+                        "Failed to write asset tag %s to %r: %s",
+                        match.netbox_asset_tag,
+                        match.ha_device_name,
+                        err,
+                    )
+                    errors.append(
+                        {
+                            "ha_device_id": match.ha_device_id,
+                            "ha_device_name": match.ha_device_name,
+                            "netbox_asset_tag": match.netbox_asset_tag,
+                            "error": str(err),
+                        }
+                    )
+                else:
+                    _LOGGER.info(
+                        "Wrote asset tag %s to %r via %s key %s",
+                        match.netbox_asset_tag,
+                        match.ha_device_name,
+                        result.backend,
+                        result.key,
+                    )
+                    written.append(
+                        {
+                            "ha_device_id": match.ha_device_id,
+                            "ha_device_name": match.ha_device_name,
+                            "netbox_device_id": match.netbox_device_id,
+                            "netbox_asset_tag": match.netbox_asset_tag,
+                            "backend": result.backend,
+                            "key": result.key,
+                        }
+                    )
+
+        for device_id in target_ids - matched_ids:
+            device_entry = device_reg.async_get(device_id)
+            name = (
+                (device_entry.name_by_user or device_entry.name or device_id)
+                if device_entry
+                else device_id
+            )
+            skipped.append(
+                {
+                    "ha_device_id": device_id,
+                    "ha_device_name": name,
+                    "reason": "no_coordinator_match",
+                }
+            )
+
+        return {"written": written, "skipped": skipped, "errors": errors}
+
+    if not hass.services.has_service(DOMAIN, SERVICE_SYNC_TO_NETBOX):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SYNC_TO_NETBOX,
+            _handle_sync_to_netbox,
+            schema=SYNC_SERVICE_SCHEMA,
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+
+    if not hass.services.has_service(DOMAIN, SERVICE_WRITE_ASSET_TAG_TO_DEVICE):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_WRITE_ASSET_TAG_TO_DEVICE,
+            _handle_write_asset_tag_to_device,
+            schema=WRITE_TO_DEVICE_SERVICE_SCHEMA,
+            supports_response=SupportsResponse.OPTIONAL,
+        )
 
 
 def async_unregister_services(hass: HomeAssistant) -> None:
@@ -283,3 +410,5 @@ def async_unregister_services(hass: HomeAssistant) -> None:
         return
     if hass.services.has_service(DOMAIN, SERVICE_SYNC_TO_NETBOX):
         hass.services.async_remove(DOMAIN, SERVICE_SYNC_TO_NETBOX)
+    if hass.services.has_service(DOMAIN, SERVICE_WRITE_ASSET_TAG_TO_DEVICE):
+        hass.services.async_remove(DOMAIN, SERVICE_WRITE_ASSET_TAG_TO_DEVICE)

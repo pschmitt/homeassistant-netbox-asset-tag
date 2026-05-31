@@ -7,3 +7,13 @@ sync_to_netbox:
         device:
           integration: netbox_asset_tag
           multiple: true
+
+write_asset_tag_to_device:
+  response:
+    optional: true
+  fields:
+    device_id:
+      selector:
+        device:
+          integration: netbox_asset_tag
+          multiple: true

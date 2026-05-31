@@ -9,10 +9,17 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, SERVICE_SYNC_TO_NETBOX
+from .const import (
+    CONF_WRITE_ASSET_TAG_TO_DEVICES,
+    DEFAULT_WRITE_ASSET_TAG_TO_DEVICES,
+    DOMAIN,
+    SERVICE_SYNC_TO_NETBOX,
+    SERVICE_WRITE_ASSET_TAG_TO_DEVICE,
+)
 from .coordinator import NetBoxAssetTagCoordinator
+from .device_writers import device_supports_asset_tag_write
 from .entity import NetBoxAssetTagEntity
-from .registry import get_sync_button_unique_id
+from .registry import get_device_write_button_unique_id, get_sync_button_unique_id
 
 
 async def async_setup_entry(
@@ -29,25 +36,47 @@ async def async_setup_entry(
     @callback
     def async_add_missing_entities() -> None:
         current_unique_ids: set[str] = set()
-        new_entities: list[NetBoxSyncButton] = []
+        new_entities: list[ButtonEntity] = []
+        write_to_devices_enabled = config_entry.options.get(
+            CONF_WRITE_ASSET_TAG_TO_DEVICES,
+            DEFAULT_WRITE_ASSET_TAG_TO_DEVICES,
+        )
 
-        for attached_device_key in coordinator.data:
-            entity_unique_id = get_sync_button_unique_id(
+        for attached_device_key, match in coordinator.data.items():
+            sync_entity_unique_id = get_sync_button_unique_id(
                 config_entry.entry_id,
                 attached_device_key,
             )
-            current_unique_ids.add(entity_unique_id)
-            if entity_unique_id in known_entities:
+            current_unique_ids.add(sync_entity_unique_id)
+            if sync_entity_unique_id not in known_entities:
+                known_entities.add(sync_entity_unique_id)
+                new_entities.append(
+                    NetBoxSyncButton(
+                        coordinator=coordinator,
+                        attached_device_key=attached_device_key,
+                        unique_id=sync_entity_unique_id,
+                    )
+                )
+
+            if not write_to_devices_enabled:
+                continue
+            if not device_supports_asset_tag_write(hass, match.ha_device_id):
                 continue
 
-            known_entities.add(entity_unique_id)
-            new_entities.append(
-                NetBoxSyncButton(
-                    coordinator=coordinator,
-                    attached_device_key=attached_device_key,
-                    unique_id=entity_unique_id,
-                )
+            write_entity_unique_id = get_device_write_button_unique_id(
+                config_entry.entry_id,
+                attached_device_key,
             )
+            current_unique_ids.add(write_entity_unique_id)
+            if write_entity_unique_id not in known_entities:
+                known_entities.add(write_entity_unique_id)
+                new_entities.append(
+                    NetBoxDeviceWriteButton(
+                        coordinator=coordinator,
+                        attached_device_key=attached_device_key,
+                        unique_id=write_entity_unique_id,
+                    )
+                )
 
         known_entities.clear()
         known_entities.update(current_unique_ids)
@@ -178,4 +207,66 @@ class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
             "\n\n".join(lines),
             title=f"NetBox sync — {match.netbox_asset_tag}",
             notification_id=f"netbox_sync_{match.ha_device_id}",
+        )
+
+
+class NetBoxDeviceWriteButton(NetBoxAssetTagEntity, ButtonEntity):
+    """Button that writes this device's asset tag to the device itself."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:tag-arrow-right"
+    _attr_translation_key = "write_asset_tag_to_device"
+
+    def __init__(
+        self,
+        coordinator: NetBoxAssetTagCoordinator,
+        attached_device_key: str,
+        unique_id: str,
+    ) -> None:
+        """Initialize the button."""
+        super().__init__(coordinator, attached_device_key)
+        self._attr_unique_id = unique_id
+
+    @property
+    def name(self) -> str:
+        """Return the entity name."""
+        return "Write asset tag to device"
+
+    async def async_press(self) -> None:
+        """Call write_asset_tag_to_device for this device and notify with the result."""
+        match = self.matched_device
+        if match is None:
+            return
+
+        response = await self.hass.services.async_call(
+            DOMAIN,
+            SERVICE_WRITE_ASSET_TAG_TO_DEVICE,
+            {"device_id": [match.ha_device_id]},
+            blocking=True,
+            return_response=True,
+        ) or {}
+
+        lines: list[str] = []
+        for entry in response.get("written", []):
+            lines.append(
+                "✅ Wrote "
+                f"**{entry.get('netbox_asset_tag', match.netbox_asset_tag)}** "
+                f"to `{entry.get('backend')}` key `{entry.get('key')}`"
+            )
+
+        for entry in response.get("errors", []):
+            lines.append(f"❌ Error: {entry.get('error', 'unknown error')}")
+
+        for entry in response.get("skipped", []):
+            reason = entry.get("reason", "skipped").replace("_", " ")
+            lines.append(f"⚠️ Skipped: {reason}")
+
+        if not lines:
+            lines = ["Nothing to write"]
+
+        pn_create(
+            self.hass,
+            "\n\n".join(lines),
+            title=f"Device asset tag write — {match.netbox_asset_tag}",
+            notification_id=f"netbox_device_asset_tag_write_{match.ha_device_id}",
         )

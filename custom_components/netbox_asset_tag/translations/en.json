@@ -37,6 +37,22 @@
           }
         }
       }
+    },
+    "write_asset_tag_to_device": {
+      "name": "Write asset tag to device",
+      "description": "Write the matched NetBox asset tag to compatible physical devices. Shelly devices with KVS support store it under the netbox-asset-tag key.",
+      "fields": {
+        "device_id": {
+          "name": "Devices",
+          "description": "One or more devices to write to. Leave empty to write all coordinator-matched compatible devices.",
+          "selector": {
+            "device": {
+              "integration": "netbox_asset_tag",
+              "multiple": true
+            }
+          }
+        }
+      }
     }
   },
   "options": {
@@ -53,7 +69,11 @@
         "title": "⚙️ General settings",
         "data": {
           "scan_interval": "⏱️ Update interval in seconds",
-          "enable_weak_matching": "🧪 Enable weaker serial matching from raw integration identifiers"
+          "enable_weak_matching": "🧪 Enable weaker serial matching from raw integration identifiers",
+          "write_asset_tag_to_devices": "🏷️ Enable writing asset tags to compatible devices"
+        },
+        "data_description": {
+          "write_asset_tag_to_devices": "When enabled, compatible physical devices get a diagnostic button that writes the NetBox asset tag to the device itself. Shelly devices with KVS support are supported first."
         }
       },
       "sync_settings": {

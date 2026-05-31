@@ -35,12 +35,14 @@ from .const import (
     CONF_ENABLE_WEAK_MATCHING,
     CONF_SYNC_FIELDS,
     CONF_VERIFY_SSL,
+    CONF_WRITE_ASSET_TAG_TO_DEVICES,
     DEFAULT_AUTO_SYNC,
     DEFAULT_ENABLE_WEAK_MATCHING,
     DEFAULT_HA_URL_FIELD,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SYNC_FIELDS,
     DEFAULT_VERIFY_SSL,
+    DEFAULT_WRITE_ASSET_TAG_TO_DEVICES,
     DOMAIN,
     MIN_SCAN_INTERVAL,
     SYNC_FIELD_HA_URL,
@@ -119,6 +121,7 @@ class NetBoxAssetTagConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_SYNC_FIELDS: DEFAULT_SYNC_FIELDS,
                     CONF_HA_URL_FIELD: DEFAULT_HA_URL_FIELD,
                     CONF_AUTO_SYNC: DEFAULT_AUTO_SYNC,
+                    CONF_WRITE_ASSET_TAG_TO_DEVICES: DEFAULT_WRITE_ASSET_TAG_TO_DEVICES,
                 }
                 title = user_input.get(CONF_NAME) or info["title"]
                 return self.async_create_entry(title=title, data=data, options=options)
@@ -195,6 +198,13 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
                         default=self._options.get(
                             CONF_ENABLE_WEAK_MATCHING,
                             DEFAULT_ENABLE_WEAK_MATCHING,
+                        ),
+                    ): BooleanSelector(),
+                    vol.Required(
+                        CONF_WRITE_ASSET_TAG_TO_DEVICES,
+                        default=self._options.get(
+                            CONF_WRITE_ASSET_TAG_TO_DEVICES,
+                            DEFAULT_WRITE_ASSET_TAG_TO_DEVICES,
                         ),
                     ): BooleanSelector(),
                 }

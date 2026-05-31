@@ -8,7 +8,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 
-from .const import DOMAIN
+from .const import (
+    CONF_WRITE_ASSET_TAG_TO_DEVICES,
+    DEFAULT_WRITE_ASSET_TAG_TO_DEVICES,
+    DOMAIN,
+)
+from .device_writers import device_supports_asset_tag_write
 from .models import HomeAssistantDeviceMatch
 
 
@@ -20,6 +25,11 @@ def get_asset_tag_unique_id(entry_id: str, attached_device_key: str) -> str:
 def get_sync_button_unique_id(entry_id: str, attached_device_key: str) -> str:
     """Return the stable unique ID for one sync-button entity."""
     return f"{entry_id}_{attached_device_key}_sync"
+
+
+def get_device_write_button_unique_id(entry_id: str, attached_device_key: str) -> str:
+    """Return the stable unique ID for one device-write button entity."""
+    return f"{entry_id}_{attached_device_key}_write_asset_tag_to_device"
 
 
 @callback
@@ -37,6 +47,18 @@ def async_cleanup_registry(
         get_sync_button_unique_id(config_entry.entry_id, match.attached_device_key)
         for match in matches.values()
     }
+    if config_entry.options.get(
+        CONF_WRITE_ASSET_TAG_TO_DEVICES,
+        DEFAULT_WRITE_ASSET_TAG_TO_DEVICES,
+    ):
+        current_unique_ids |= {
+            get_device_write_button_unique_id(
+                config_entry.entry_id,
+                match.attached_device_key,
+            )
+            for match in matches.values()
+            if device_supports_asset_tag_write(hass, match.ha_device_id)
+        }
 
     for entity_entry in er.async_entries_for_config_entry(
         entity_registry,
