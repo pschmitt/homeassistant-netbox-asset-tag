@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 from .api import NetBoxApiClient
@@ -78,6 +79,36 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     hass.data[DOMAIN].pop(config_entry.entry_id)
     async_unregister_services(hass)
     return unload_ok
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    device_entry: dr.DeviceEntry,
+) -> bool:
+    """Allow a user to delete a device from this config entry.
+
+    NetBox Asset Tag does not own devices; it only enriches devices provided by
+    other integrations with an asset-tag sensor and helper buttons, so it should
+    never be the sole reason a device cannot be deleted.
+
+    Removal is refused only when the device is still actively matched to NetBox
+    *and* still backed by another integration: in that case the asset-tag entity
+    would just be recreated on the next coordinator refresh, so the deletion
+    would not stick and allowing it would only cause churn. Orphaned devices
+    that this integration alone keeps alive are always removable.
+    """
+    entry_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id)
+    coordinator = entry_data.get("coordinator") if entry_data else None
+    matches = getattr(coordinator, "data", None) or {}
+    still_matched = any(
+        match.ha_device_id == device_entry.id for match in matches.values()
+    )
+    backed_by_other_integration = any(
+        entry_id != config_entry.entry_id
+        for entry_id in device_entry.config_entries
+    )
+    return not (still_matched and backed_by_other_integration)
 
 
 async def async_update_listener(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
