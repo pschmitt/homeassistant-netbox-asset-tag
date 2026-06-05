@@ -144,6 +144,70 @@ class NetBoxAssetTagConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_reconfigure(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Handle reconfiguration of an existing entry."""
+        errors: dict[str, str] = {}
+        entry = self._get_reconfigure_entry()
+
+        if user_input is not None:
+            user_input[CONF_URL] = normalize_url(user_input[CONF_URL])
+            # An empty token means: keep the current one
+            if not user_input.get(CONF_TOKEN):
+                user_input[CONF_TOKEN] = entry.data[CONF_TOKEN]
+            data = {
+                CONF_URL: user_input[CONF_URL],
+                CONF_TOKEN: user_input[CONF_TOKEN],
+                CONF_VERIFY_SSL: user_input[CONF_VERIFY_SSL],
+            }
+
+            try:
+                info = await validate_input(self.hass, data)
+            except NetBoxAuthenticationError:
+                errors["base"] = "invalid_auth"
+            except NetBoxApiError:
+                errors["base"] = "cannot_connect"
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception(
+                    "Unexpected exception while validating NetBox Asset Tag config"
+                )
+                errors["base"] = "unknown"
+            else:
+                new_unique_id = info["unique_id"]
+                for other in self._async_current_entries():
+                    if (
+                        other.entry_id != entry.entry_id
+                        and other.unique_id == new_unique_id
+                    ):
+                        return self.async_abort(reason="already_configured")
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data=data,
+                    unique_id=new_unique_id,
+                )
+
+        defaults = user_input or entry.data
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_URL, default=defaults.get(CONF_URL, "")
+                    ): TextSelector(),
+                    vol.Optional(CONF_TOKEN): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                    vol.Required(
+                        CONF_VERIFY_SSL,
+                        default=defaults.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+                    ): BooleanSelector(),
+                }
+            ),
+            errors=errors,
+        )
+
 
 class NetBoxAssetTagOptionsFlow(OptionsFlow):
     """Handle options for NetBox Asset Tag."""

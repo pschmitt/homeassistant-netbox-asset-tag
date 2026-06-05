@@ -10,6 +10,15 @@
           "token": "🔑 API token",
           "verify_ssl": "🔒 Verify SSL certificate"
         }
+      },
+      "reconfigure": {
+        "title": "🏷️ Reconfigure NetBox Asset Tag",
+        "description": "Update the connection settings. Leave the API token empty to keep the current one.",
+        "data": {
+          "url": "🌐 NetBox URL",
+          "token": "🔑 API token",
+          "verify_ssl": "🔒 Verify SSL certificate"
+        }
       }
     },
     "error": {
@@ -18,7 +27,8 @@
       "unknown": "Unexpected error."
     },
     "abort": {
-      "already_configured": "This NetBox instance is already configured."
+      "already_configured": "This NetBox instance is already configured.",
+      "reconfigure_successful": "Configuration updated."
     }
   },
   "services": {
