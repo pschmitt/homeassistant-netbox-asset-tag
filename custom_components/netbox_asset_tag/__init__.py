@@ -76,8 +76,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Unload a NetBox Asset Tag config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
-    hass.data[DOMAIN].pop(config_entry.entry_id)
-    async_unregister_services(hass)
+    if unload_ok:
+        hass.data[DOMAIN].pop(config_entry.entry_id, None)
+        async_unregister_services(hass)
     return unload_ok
 
 

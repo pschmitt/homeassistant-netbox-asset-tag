@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections import defaultdict
 from typing import Any
 from urllib.parse import urljoin
@@ -25,6 +26,9 @@ from .models import (
     normalize_identifier,
     normalize_serial,
 )
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def normalize_url(url: str) -> str:
@@ -81,7 +85,7 @@ class NetBoxApiClient:
                         f"NetBox PATCH failed with status {response.status}: {body[:200]}"
                     )
                 return await response.json()
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, TimeoutError, ValueError) as err:
             raise NetBoxApiError("Failed to reach NetBox") from err
 
     async def async_validate(self) -> dict[str, Any]:
@@ -107,20 +111,24 @@ class NetBoxApiClient:
                 continue
 
             custom_fields = item.get("custom_fields") or {}
-            record = NetBoxDeviceRecord(
-                device_id=int(item["id"]),
-                name=item.get("name") or item.get("display") or str(item["id"]),
-                display=item.get("display") or item.get("name") or str(item["id"]),
-                asset_tag=asset_tag,
-                display_url=display_url,
-                serial=normalize_serial(item.get("serial")),
-                zigbee_ieee=normalize_identifier(custom_fields.get("zigbee_ieee")),
-                thread_eui64=normalize_identifier(custom_fields.get("thread_eui64")),
-                lorawan_eui=normalize_serial(custom_fields.get("lorawan_eui")),
-                device_identifiers=parse_device_identifiers(
-                    custom_fields.get("device_identifier")
-                ),
-            )
+            try:
+                record = NetBoxDeviceRecord(
+                    device_id=int(item["id"]),
+                    name=item.get("name") or item.get("display") or str(item["id"]),
+                    display=item.get("display") or item.get("name") or str(item["id"]),
+                    asset_tag=asset_tag,
+                    display_url=display_url,
+                    serial=normalize_serial(item.get("serial")),
+                    zigbee_ieee=normalize_identifier(custom_fields.get("zigbee_ieee")),
+                    thread_eui64=normalize_identifier(custom_fields.get("thread_eui64")),
+                    lorawan_eui=normalize_serial(custom_fields.get("lorawan_eui")),
+                    device_identifiers=parse_device_identifiers(
+                        custom_fields.get("device_identifier")
+                    ),
+                )
+            except (KeyError, TypeError, ValueError):
+                _LOGGER.debug("Skipping malformed NetBox device item: %r", item)
+                continue
             devices[record.device_id] = record
 
             for identifier in (
@@ -286,7 +294,7 @@ class NetBoxApiClient:
                         f"NetBox request failed with status {response.status}"
                     )
                 payload = await response.json()
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, TimeoutError, ValueError) as err:
             raise NetBoxApiError("Failed to reach NetBox") from err
 
         if not isinstance(payload, dict):

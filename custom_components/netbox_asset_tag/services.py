@@ -171,6 +171,17 @@ async def async_register_services(hass: HomeAssistant) -> None:
                             match.ha_device_name,
                         )
 
+                if not payload:
+                    skipped.append(
+                        {
+                            "ha_device_id": match.ha_device_id,
+                            "ha_device_name": match.ha_device_name,
+                            "netbox_asset_tag": match.netbox_asset_tag,
+                            "reason": "nothing_to_sync",
+                        }
+                    )
+                    continue
+
                 # Fetch current NetBox state so we can show old → new in notifications
                 try:
                     current_nb = await client.async_get_device(match.netbox_device_id)

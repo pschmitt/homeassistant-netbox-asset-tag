@@ -49,5 +49,7 @@ class NetBoxAssetTagEntity(CoordinatorEntity[NetBoxAssetTagCoordinator]):
             info["identifiers"] = identifiers
         if connections:
             info["connections"] = connections
+        if not info:
+            return None
 
         return DeviceInfo(**info)

@@ -446,13 +446,13 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
         """Return dropdown options for Home Assistant devices."""
         device_registry = dr.async_get(self.hass)
         area_registry = ar.async_get(self.hass)
-        matched_device_keys = set(
+        coordinator = (
             self.hass.data.get(DOMAIN, {})
             .get(self._config_entry.entry_id, {})
-            .get("coordinator", {})
-            .data.keys()
-            if self.hass.data.get(DOMAIN, {}).get(self._config_entry.entry_id)
-            else ()
+            .get("coordinator")
+        )
+        matched_device_keys = (
+            set(coordinator.data) if coordinator and coordinator.data else set()
         )
 
         sortable_options: list[tuple[bool, str, SelectOptionDict]] = []

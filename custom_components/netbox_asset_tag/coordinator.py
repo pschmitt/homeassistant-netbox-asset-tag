@@ -330,6 +330,7 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
         super().__init__(
             hass,
             logger=_LOGGER,
+            config_entry=config_entry,
             name=f"{DOMAIN}_{config_entry.entry_id}",
             update_interval=timedelta(
                 seconds=config_entry.options.get(
@@ -339,7 +340,6 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
             ),
         )
         self.client = client
-        self.config_entry = config_entry
 
     @property
     def server_url(self) -> str:
