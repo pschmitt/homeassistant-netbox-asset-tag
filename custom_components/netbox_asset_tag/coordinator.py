@@ -254,8 +254,8 @@ def _get_cast_host(hass: HomeAssistant, cast_uuid_str: str) -> str | None:
         from homeassistant.components.cast import DOMAIN as CAST_DOMAIN  # noqa: PLC0415
 
         normalized = cast_uuid_str.replace("-", "").lower()
-        for entry_data in (hass.data.get(CAST_DOMAIN) or {}).values():
-            browser = getattr(entry_data, "cast_browser", None)
+        for entry in hass.config_entries.async_entries(CAST_DOMAIN):
+            browser = getattr(getattr(entry, "runtime_data", None), "browser", None)
             if browser is None:
                 continue
             for dev_uuid, cast_info in (getattr(browser, "devices", None) or {}).items():
