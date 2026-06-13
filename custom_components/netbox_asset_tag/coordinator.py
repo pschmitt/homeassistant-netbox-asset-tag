@@ -416,39 +416,51 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
 
         for device_entry in device_registry.devices.values():
             attached_devices[_get_attached_device_key_for_entry(device_entry)] = device_entry
-            extra_ids: set[str] = set()
-            for entry in device_entry.identifiers:
-                if not isinstance(entry, (list, tuple)) or len(entry) < 2:
-                    continue
-                if entry[0] != "matter":
-                    continue
-                node_id = _parse_matter_node_id(entry[1])
-                if node_id is None:
-                    continue
-                mac = await _async_get_matter_mac(self.hass, node_id)
-                if mac:
-                    extra_ids.add(mac)
-                break
-
-            for entry in device_entry.identifiers:
-                if not isinstance(entry, (list, tuple)) or len(entry) < 2:
-                    continue
-                if entry[0] != "cast":
-                    continue
-                mac = await _async_get_cast_mac(self.hass, str(entry[1]))
-                if mac:
-                    extra_ids.add(mac)
-                break
-
-            match = _match_device(
-                device_entry,
-                inventory,
-                enable_weak_matching=self.config_entry.options.get(
-                    CONF_ENABLE_WEAK_MATCHING,
-                    DEFAULT_ENABLE_WEAK_MATCHING,
-                ),
-                extra_identifiers=extra_ids or None,
+            enable_weak = self.config_entry.options.get(
+                CONF_ENABLE_WEAK_MATCHING,
+                DEFAULT_ENABLE_WEAK_MATCHING,
             )
+
+            # Fast path: try matching with the identifiers/connections HA already knows.
+            match = _match_device(device_entry, inventory, enable_weak_matching=enable_weak)
+
+            if match is None:
+                # Slow path: augment with ARP-resolved MACs for integrations that
+                # communicate with WiFi devices but don't expose a MAC in the registry.
+                # Only runs when the fast path failed, so the subprocess cost is paid
+                # only for genuinely unmatched devices.
+                extra_ids: set[str] = set()
+
+                for entry in device_entry.identifiers:
+                    if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+                        continue
+                    if entry[0] != "matter":
+                        continue
+                    node_id = _parse_matter_node_id(entry[1])
+                    if node_id is None:
+                        continue
+                    mac = await _async_get_matter_mac(self.hass, node_id)
+                    if mac:
+                        extra_ids.add(mac)
+                    break
+
+                for entry in device_entry.identifiers:
+                    if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+                        continue
+                    if entry[0] != "cast":
+                        continue
+                    mac = await _async_get_cast_mac(self.hass, str(entry[1]))
+                    if mac:
+                        extra_ids.add(mac)
+                    break
+
+                if extra_ids:
+                    match = _match_device(
+                        device_entry,
+                        inventory,
+                        enable_weak_matching=enable_weak,
+                        extra_identifiers=extra_ids,
+                    )
             if match is None:
                 continue
             existing_match = matches.get(match.attached_device_key)
