@@ -146,6 +146,7 @@ class HomeAssistantDeviceMatch:
     # physical device that appear under multiple integrations.
     extra_connections: tuple[RegistryEntry, ...]
     netbox_device_id: int
+    netbox_serial: str | None
     netbox_asset_tag: str
     netbox_display: str
     netbox_url: str

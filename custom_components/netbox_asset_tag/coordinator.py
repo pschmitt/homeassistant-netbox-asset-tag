@@ -170,6 +170,7 @@ def _build_match(
         ha_connections=frozen_connections,
         extra_connections=extra_connections,
         netbox_device_id=netbox_device.device_id,
+        netbox_serial=netbox_device.serial,
         netbox_asset_tag=netbox_device.asset_tag,
         netbox_display=netbox_device.display,
         netbox_url=netbox_device.display_url,

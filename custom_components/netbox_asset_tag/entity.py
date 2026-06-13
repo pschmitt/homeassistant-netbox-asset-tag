@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -55,5 +56,13 @@ class NetBoxAssetTagEntity(CoordinatorEntity[NetBoxAssetTagCoordinator]):
             info["connections"] = connections
         if not info:
             return None
+
+        # Enrich with the NetBox serial when the HA device has none yet, so it
+        # shows up in the device card and can help HA merge device entries across
+        # integrations that report the same hardware serial.
+        if match.netbox_serial:
+            device_entry = dr.async_get(self.hass).async_get(match.ha_device_id)
+            if device_entry is None or not device_entry.serial_number:
+                info["serial_number"] = match.netbox_serial
 
         return DeviceInfo(**info)
