@@ -27,10 +27,21 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
 
 @callback
-def _async_remove_stale_netbox_device_identifiers(hass: HomeAssistant) -> None:
-    """Remove (DOMAIN, <numeric-id>) identifiers injected by the linking experiment."""
+def _async_remove_stale_netbox_device_identifiers(
+    hass: HomeAssistant,
+    matched_device_ids: set[str],
+) -> None:
+    """Remove (DOMAIN, <numeric-id>) identifiers injected by the linking experiment.
+
+    Only processes devices that are currently matched by the coordinator.  Ghost
+    devices (not matched, 0 entities) share cast/other identifiers with real
+    devices, so calling async_update_device on them raises HomeAssistantError for
+    conflicting identifiers.  Those devices are removed by async_cleanup_registry.
+    """
     device_registry = dr.async_get(hass)
     for device_entry in list(device_registry.devices.values()):
+        if device_entry.id not in matched_device_ids:
+            continue
         stale = {
             ident
             for ident in device_entry.identifiers
@@ -40,7 +51,7 @@ def _async_remove_stale_netbox_device_identifiers(hass: HomeAssistant) -> None:
             continue
         device_registry.async_update_device(
             device_entry.id,
-            new_identifiers=device_entry.identifiers - stale,
+            new_identifiers=set(device_entry.identifiers - stale),
         )
 
 
@@ -65,7 +76,10 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
     async_cleanup_registry(hass, config_entry, coordinator.data)
-    _async_remove_stale_netbox_device_identifiers(hass)
+    _async_remove_stale_netbox_device_identifiers(
+        hass,
+        {m.ha_device_id for m in coordinator.data.values()},
+    )
     await async_register_services(hass)
 
     @callback
