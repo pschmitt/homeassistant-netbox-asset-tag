@@ -141,6 +141,10 @@ class HomeAssistantDeviceMatch:
     ha_device_name: str
     ha_identifiers: tuple[RegistryEntry, ...]
     ha_connections: tuple[RegistryEntry, ...]
+    # Connections gathered during slow-path matching (e.g., ARP-resolved MACs).
+    # Included in DeviceInfo so HA merges device registry entries for the same
+    # physical device that appear under multiple integrations.
+    extra_connections: tuple[RegistryEntry, ...]
     netbox_device_id: int
     netbox_asset_tag: str
     netbox_display: str

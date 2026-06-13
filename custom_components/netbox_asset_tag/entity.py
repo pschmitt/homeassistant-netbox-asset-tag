@@ -45,6 +45,10 @@ class NetBoxAssetTagEntity(CoordinatorEntity[NetBoxAssetTagCoordinator]):
         info: dict[str, Any] = {}
         identifiers = {entry for entry in match.ha_identifiers if len(entry) == 2}
         connections = {entry for entry in match.ha_connections if len(entry) == 2}
+        # Include slow-path connections (e.g., ARP-derived MACs) so HA's device
+        # registry merges entries from different integrations for the same physical
+        # device (e.g., a Cast device + its Android TV Remote entry).
+        connections.update(entry for entry in match.extra_connections if len(entry) == 2)
         if identifiers:
             info["identifiers"] = identifiers
         if connections:

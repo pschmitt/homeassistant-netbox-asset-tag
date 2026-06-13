@@ -155,6 +155,7 @@ def _build_match(
     match_methods: tuple[str, ...],
     weak_match: bool,
     manual_override: bool,
+    extra_connections: tuple[RegistryEntry, ...] = (),
 ) -> HomeAssistantDeviceMatch:
     """Build a match payload for one Home Assistant device."""
     netbox_device = inventory.devices[netbox_device_id]
@@ -167,6 +168,7 @@ def _build_match(
         ha_device_name=device_entry.name_by_user or device_entry.name or device_entry.id,
         ha_identifiers=frozen_identifiers,
         ha_connections=frozen_connections,
+        extra_connections=extra_connections,
         netbox_device_id=netbox_device.device_id,
         netbox_asset_tag=netbox_device.asset_tag,
         netbox_display=netbox_device.display,
@@ -308,6 +310,7 @@ def _match_device(
     *,
     enable_weak_matching: bool,
     extra_identifiers: set[str] | None = None,
+    extra_connections: tuple[RegistryEntry, ...] = (),
 ) -> HomeAssistantDeviceMatch | None:
     """Match one Home Assistant device against the NetBox inventory."""
     strong_identifiers = _collect_ha_identifiers(device_entry)
@@ -369,6 +372,7 @@ def _match_device(
         match_methods=match_methods,
         weak_match=weak_match,
         manual_override=False,
+        extra_connections=extra_connections,
     )
 
 
@@ -429,7 +433,13 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
                 # communicate with WiFi devices but don't expose a MAC in the registry.
                 # Only runs when the fast path failed, so the subprocess cost is paid
                 # only for genuinely unmatched devices.
+                #
+                # MACs gathered here are also stored as extra_connections so that
+                # entity.DeviceInfo declares them; HA's device registry then merges
+                # device entries from different integrations for the same physical device
+                # (e.g., Cast + Android TV Remote both representing one Chromecast).
                 extra_ids: set[str] = set()
+                extra_conns: list[RegistryEntry] = []
 
                 for entry in device_entry.identifiers:
                     if not isinstance(entry, (list, tuple)) or len(entry) < 2:
@@ -442,6 +452,7 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
                     mac = await _async_get_matter_mac(self.hass, node_id)
                     if mac:
                         extra_ids.add(mac)
+                        extra_conns.append(("mac", mac))
                     break
 
                 for entry in device_entry.identifiers:
@@ -452,6 +463,7 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
                     mac = await _async_get_cast_mac(self.hass, str(entry[1]))
                     if mac:
                         extra_ids.add(mac)
+                        extra_conns.append(("mac", mac))
                     break
 
                 if extra_ids:
@@ -460,6 +472,7 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
                         inventory,
                         enable_weak_matching=enable_weak,
                         extra_identifiers=extra_ids,
+                        extra_connections=tuple(extra_conns),
                     )
             if match is None:
                 continue
