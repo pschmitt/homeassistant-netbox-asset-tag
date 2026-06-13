@@ -377,6 +377,57 @@ def _match_device(
     )
 
 
+def _deduplicate_sibling_matches(
+    matches: dict[str, HomeAssistantDeviceMatch],
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """Remove duplicate coordinator matches for the same NetBox asset.
+
+    When multiple HA devices (e.g., Cast + Android TV Remote for one Chromecast,
+    or Hue bridge + ZHA for the same bulb) all map to the same NetBox asset, keep
+    only one match so we don't create duplicate asset-tag sensor entities.
+
+    The primary is chosen by:
+      1. Most non-MAC, non-DOMAIN identifiers (richer unique ID → more stable device).
+      2. Most config entries (more integrations using this device → more canonical).
+      3. Tie-break: lexicographic key.
+    """
+    netbox_to_keys: dict[int, list[str]] = {}
+    for key, match in matches.items():
+        netbox_to_keys.setdefault(match.netbox_device_id, []).append(key)
+
+    for netbox_device_id, keys in netbox_to_keys.items():
+        if len(keys) <= 1:
+            continue
+
+        def _sort_key(k: str) -> tuple[int, int, str]:
+            m = matches[k]
+            non_mac_non_domain = sum(
+                1
+                for e in m.ha_identifiers
+                if len(e) >= 2
+                and str(e[0]) != DOMAIN
+                and normalize_identifier(str(e[1])) is None
+            )
+            dev = device_registry.async_get(m.ha_device_id)
+            cfg_count = len(dev.config_entries) if dev else 0
+            return (non_mac_non_domain, cfg_count, k)
+
+        sorted_keys = sorted(keys, key=_sort_key, reverse=True)
+        primary_match = matches[sorted_keys[0]]
+
+        for secondary_key in sorted_keys[1:]:
+            secondary_match = matches.pop(secondary_key)
+            _LOGGER.debug(
+                "Deduplicating sibling match: keeping %s (%s), dropping %s (%s) [NetBox device %d]",
+                primary_match.ha_device_name,
+                primary_match.ha_device_id,
+                secondary_match.ha_device_name,
+                secondary_match.ha_device_id,
+                netbox_device_id,
+            )
+
+
 class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDeviceMatch]]):
     """Coordinate NetBox inventory matching against Home Assistant devices."""
 
@@ -533,4 +584,5 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
                 manual_override=True,
             )
 
+        _deduplicate_sibling_matches(matches, device_registry)
         return matches
