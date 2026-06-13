@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from datetime import timedelta
@@ -247,6 +248,60 @@ async def _async_get_matter_mac(hass: HomeAssistant, node_id: int) -> str | None
     return None
 
 
+def _get_cast_host(hass: HomeAssistant, cast_uuid_str: str) -> str | None:
+    """Return the IP of a Cast device from the cast integration's browser state."""
+    try:
+        from homeassistant.components.cast import DOMAIN as CAST_DOMAIN  # noqa: PLC0415
+
+        normalized = cast_uuid_str.replace("-", "").lower()
+        for entry_data in (hass.data.get(CAST_DOMAIN) or {}).values():
+            browser = getattr(entry_data, "cast_browser", None)
+            if browser is None:
+                continue
+            for dev_uuid, cast_info in (getattr(browser, "devices", None) or {}).items():
+                if str(dev_uuid).replace("-", "").lower() == normalized:
+                    host = getattr(cast_info, "host", None)
+                    if host:
+                        return str(host)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Cast host lookup failed: %s", err)
+    return None
+
+
+async def _async_mac_from_ip(ip: str) -> str | None:
+    """Resolve a MAC address from an IP via the system ARP neighbour table."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ip", "neigh", "show", ip,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await proc.communicate()
+        for line in stdout.decode().splitlines():
+            parts = line.split()
+            if "lladdr" in parts:
+                idx = parts.index("lladdr")
+                if idx + 1 < len(parts):
+                    return normalize_identifier(parts[idx + 1])
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("ARP lookup failed for %s: %s", ip, err)
+    return None
+
+
+async def _async_get_cast_mac(hass: HomeAssistant, cast_uuid_str: str) -> str | None:
+    """Return the normalized WiFi MAC for a Cast device by ARP-resolving its IP."""
+    host = _get_cast_host(hass, cast_uuid_str)
+    if not host:
+        _LOGGER.debug("Cast host not found for UUID %s", cast_uuid_str)
+        return None
+    mac = await _async_mac_from_ip(host)
+    if mac:
+        _LOGGER.debug("Resolved Cast UUID %s → host %s → MAC %s", cast_uuid_str, host, mac)
+    else:
+        _LOGGER.debug("ARP resolution failed for Cast UUID %s (host %s)", cast_uuid_str, host)
+    return mac
+
+
 def _match_device(
     device_entry: dr.DeviceEntry,
     inventory: NetBoxInventory,
@@ -371,6 +426,16 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
                 if node_id is None:
                     continue
                 mac = await _async_get_matter_mac(self.hass, node_id)
+                if mac:
+                    extra_ids.add(mac)
+                break
+
+            for entry in device_entry.identifiers:
+                if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+                    continue
+                if entry[0] != "cast":
+                    continue
+                mac = await _async_get_cast_mac(self.hass, str(entry[1]))
                 if mac:
                     extra_ids.add(mac)
                 break
