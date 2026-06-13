@@ -26,6 +26,24 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     return True
 
 
+@callback
+def _async_remove_stale_netbox_device_identifiers(hass: HomeAssistant) -> None:
+    """Remove (DOMAIN, <numeric-id>) identifiers injected by the linking experiment."""
+    device_registry = dr.async_get(hass)
+    for device_entry in list(device_registry.devices.values()):
+        stale = {
+            ident
+            for ident in device_entry.identifiers
+            if len(ident) == 2 and ident[0] == DOMAIN and str(ident[1]).isdigit()
+        }
+        if not stale:
+            continue
+        device_registry.async_update_device(
+            device_entry.id,
+            new_identifiers=device_entry.identifiers - stale,
+        )
+
+
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Set up NetBox Asset Tag from a config entry."""
     session = async_create_clientsession(
@@ -47,6 +65,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
     async_cleanup_registry(hass, config_entry, coordinator.data)
+    _async_remove_stale_netbox_device_identifiers(hass)
     await async_register_services(hass)
 
     @callback
