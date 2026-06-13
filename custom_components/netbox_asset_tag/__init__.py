@@ -9,6 +9,7 @@ from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .api import NetBoxApiClient
 from .auto_sync import async_setup_auto_sync
@@ -59,11 +60,35 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     @callback
     def _on_component_loaded(event: Event) -> None:
-        if event.data.get("component") == "matter":
+        component = event.data.get("component")
+        if component == "matter":
             config_entry.async_create_background_task(
                 hass,
                 coordinator.async_request_refresh(),
                 "netbox_asset_tag_matter_refresh",
+            )
+        elif component == "cast":
+            # Cast mDNS discovery is async: devices trickle in after the
+            # component loads.  Subscribe to per-device signals so the
+            # coordinator re-runs each time a new Cast device is found
+            # rather than firing once and potentially missing latecomers.
+            try:
+                from homeassistant.components.cast.const import (  # noqa: PLC0415
+                    SIGNAL_CAST_DISCOVERED,
+                )
+            except ImportError:
+                return
+
+            @callback
+            def _on_cast_discovered(_info: object) -> None:
+                config_entry.async_create_background_task(
+                    hass,
+                    coordinator.async_request_refresh(),
+                    "netbox_asset_tag_cast_refresh",
+                )
+
+            config_entry.async_on_unload(
+                async_dispatcher_connect(hass, SIGNAL_CAST_DISCOVERED, _on_cast_discovered)
             )
 
     config_entry.async_on_unload(
