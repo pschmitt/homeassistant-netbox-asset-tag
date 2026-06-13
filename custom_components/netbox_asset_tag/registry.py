@@ -73,29 +73,6 @@ def async_cleanup_registry(
         and dev.config_entries <= {config_entry.entry_id}
     }
 
-    # Ghost device sweep: devices that carry our config entry but are not in the
-    # current match set and have no entities from any integration.  These are
-    # left-over duplicates from earlier runs (e.g., a device-linking experiment).
-    # Matched device IDs are excluded: their entities may not be in the registry
-    # yet (entity creation is queued asynchronously after platform setup).
-    # We use remove_config_entry_id rather than async_remove_device because ghost
-    # devices may have duplicate identifiers (shared with real devices) that make
-    # the device-registry identifier index inconsistent; removing our config-entry
-    # association is safe and causes HA to auto-delete the device when it becomes
-    # config-entry-less.
-    matched_device_ids = {m.ha_device_id for m in matches.values()}
-    for device_entry in list(device_registry.devices.values()):
-        if config_entry.entry_id not in device_entry.config_entries:
-            continue
-        if device_entry.id in matched_device_ids:
-            continue
-        if er.async_entries_for_device(entity_registry, device_entry.id):
-            continue
-        device_registry.async_update_device(
-            device_entry.id,
-            remove_config_entry_id=config_entry.entry_id,
-        )
-
     for entity_entry in er.async_entries_for_config_entry(
         entity_registry,
         config_entry.entry_id,
