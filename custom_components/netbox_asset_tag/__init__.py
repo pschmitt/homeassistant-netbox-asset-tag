@@ -59,6 +59,33 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     async_setup_auto_sync(hass, config_entry, coordinator)
 
     @callback
+    def _subscribe_cast_discovery() -> None:
+        """Subscribe to SIGNAL_CAST_DISCOVERED so the coordinator re-runs for each Cast device.
+
+        Cast mDNS discovery is async: devices trickle in after the component loads.
+        We also call this immediately at setup if cast is already loaded, because
+        the component_loaded event for cast fires before netbox_asset_tag sets up.
+        """
+        try:
+            from homeassistant.components.cast.const import (  # noqa: PLC0415
+                SIGNAL_CAST_DISCOVERED,
+            )
+        except ImportError:
+            return
+
+        @callback
+        def _on_cast_discovered(_info: object) -> None:
+            config_entry.async_create_background_task(
+                hass,
+                coordinator.async_request_refresh(),
+                "netbox_asset_tag_cast_refresh",
+            )
+
+        config_entry.async_on_unload(
+            async_dispatcher_connect(hass, SIGNAL_CAST_DISCOVERED, _on_cast_discovered)
+        )
+
+    @callback
     def _on_component_loaded(event: Event) -> None:
         component = event.data.get("component")
         if component == "matter":
@@ -68,32 +95,22 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
                 "netbox_asset_tag_matter_refresh",
             )
         elif component == "cast":
-            # Cast mDNS discovery is async: devices trickle in after the
-            # component loads.  Subscribe to per-device signals so the
-            # coordinator re-runs each time a new Cast device is found
-            # rather than firing once and potentially missing latecomers.
-            try:
-                from homeassistant.components.cast.const import (  # noqa: PLC0415
-                    SIGNAL_CAST_DISCOVERED,
-                )
-            except ImportError:
-                return
-
-            @callback
-            def _on_cast_discovered(_info: object) -> None:
-                config_entry.async_create_background_task(
-                    hass,
-                    coordinator.async_request_refresh(),
-                    "netbox_asset_tag_cast_refresh",
-                )
-
-            config_entry.async_on_unload(
-                async_dispatcher_connect(hass, SIGNAL_CAST_DISCOVERED, _on_cast_discovered)
-            )
+            _subscribe_cast_discovery()
 
     config_entry.async_on_unload(
         hass.bus.async_listen("component_loaded", _on_component_loaded)
     )
+
+    # If cast is already loaded (it starts before custom integrations), subscribe now
+    # so we don't miss SIGNAL_CAST_DISCOVERED signals that fire after our setup.
+    if "cast" in hass.config.components:
+        _subscribe_cast_discovery()
+        # Trigger a refresh so already-discovered Cast devices get ARP-matched.
+        config_entry.async_create_background_task(
+            hass,
+            coordinator.async_request_refresh(),
+            "netbox_asset_tag_cast_initial_refresh",
+        )
 
     return True
 
