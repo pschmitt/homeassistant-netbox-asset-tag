@@ -8,6 +8,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .const import DOMAIN
 from .coordinator import NetBoxAssetTagCoordinator
 from .models import HomeAssistantDeviceMatch
 
@@ -50,6 +51,11 @@ class NetBoxAssetTagEntity(CoordinatorEntity[NetBoxAssetTagCoordinator]):
         # registry merges entries from different integrations for the same physical
         # device (e.g., a Cast device + its Android TV Remote entry).
         connections.update(entry for entry in match.extra_connections if len(entry) == 2)
+        # Inject the NetBox device ID as a shared identifier across every HA device
+        # that maps to the same physical asset.  When two entities (e.g., Cast and
+        # Android TV Remote for the same Chromecast) both declare this identifier,
+        # HA's device registry finds conflicting entries and merges them into one.
+        identifiers.add((DOMAIN, str(match.netbox_device_id)))
         if identifiers:
             info["identifiers"] = identifiers
         if connections:
