@@ -44,8 +44,12 @@ class NetBoxAssetTagEntity(CoordinatorEntity[NetBoxAssetTagCoordinator]):
             return None
 
         info: dict[str, Any] = {}
-        identifiers = {entry for entry in match.ha_identifiers if len(entry) == 2}
+        # Include all identifiers regardless of tuple length — some integrations
+        # (e.g. rfxtrx) register non-standard multi-element identifier tuples.
+        # HA matches on tuple equality so longer tuples work correctly.
+        identifiers = set(match.ha_identifiers)
         connections = {entry for entry in match.ha_connections if len(entry) == 2}
+        connections |= {entry for entry in match.extra_connections if len(entry) == 2}
         if identifiers:
             info["identifiers"] = identifiers
         if connections:
