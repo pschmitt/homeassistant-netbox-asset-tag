@@ -33,10 +33,10 @@ DEFAULT_DEVICE_ASSET_TAG_KEY = "netbox-asset-tag"
 
 DEFAULT_REQUEST_TIMEOUT = 20
 API_PAGE_SIZE = 250
-API_DEVICES_PATH = "/api/dcim/devices/"
-API_INTERFACES_PATH = "/api/dcim/interfaces/"
+API_DEVICES_PATH = "/api/dcim/devices/?asset_tag__isnull=false"
+API_INTERFACES_PATH = "/api/dcim/interfaces/?device__asset_tag__isnull=false"
 API_LOCATIONS_PATH = "/api/dcim/locations/"
-API_MAC_ADDRESSES_PATH = "/api/dcim/mac-addresses/"
+API_MAC_ADDRESSES_PATH = "/api/dcim/mac-addresses/?assigned_object_type=dcim.interface"
 
 SERVICE_SYNC_TO_NETBOX = "sync_to_netbox"
 SERVICE_WRITE_ASSET_TAG_TO_DEVICE = "write_asset_tag_to_device"

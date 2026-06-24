@@ -38,7 +38,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         token=config_entry.data[CONF_TOKEN],
     )
     coordinator = NetBoxAssetTagCoordinator(hass, client, config_entry)
-    await coordinator.async_config_entry_first_refresh()
+    # Run the first data fetch in the background so HA startup is not blocked.
+    # Entities will be unavailable briefly until the refresh completes.
+    config_entry.async_create_background_task(
+        hass,
+        coordinator.async_refresh(),
+        "netbox_asset_tag_first_refresh",
+    )
 
     hass.data[DOMAIN][config_entry.entry_id] = {
         "client": client,
@@ -46,7 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     }
 
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
-    async_cleanup_registry(hass, config_entry, coordinator.data)
+    async_cleanup_registry(hass, config_entry, coordinator.data or {})
     await async_register_services(hass)
 
     @callback

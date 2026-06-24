@@ -305,6 +305,72 @@ async def _async_get_cast_mac(hass: HomeAssistant, cast_uuid_str: str) -> str | 
     return mac
 
 
+def _needs_arp_resolution(device_entry: dr.DeviceEntry) -> bool:
+    """Return True when a device has Cast or Matter identifiers worth ARP-resolving."""
+    return any(
+        isinstance(entry, (list, tuple)) and len(entry) >= 2 and entry[0] in ("matter", "cast")
+        for entry in device_entry.identifiers
+    )
+
+
+async def _async_resolve_extra_ids(
+    hass: HomeAssistant,
+    device_entry: dr.DeviceEntry,
+) -> tuple[set[str], tuple[RegistryEntry, ...]]:
+    """Resolve extra MAC addresses for a Cast or Matter device via ARP/Matter client."""
+    extra_ids: set[str] = set()
+    extra_conns: list[RegistryEntry] = []
+
+    for entry in device_entry.identifiers:
+        if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+            continue
+        if entry[0] != "matter":
+            continue
+        node_id = _parse_matter_node_id(entry[1])
+        if node_id is not None:
+            mac = await _async_get_matter_mac(hass, node_id)
+            if mac:
+                extra_ids.add(mac)
+                extra_conns.append(("mac", mac))
+        break
+
+    for entry in device_entry.identifiers:
+        if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+            continue
+        if entry[0] != "cast":
+            continue
+        mac = await _async_get_cast_mac(hass, str(entry[1]))
+        if mac:
+            extra_ids.add(mac)
+            extra_conns.append(("mac", mac))
+        break
+
+    return extra_ids, tuple(extra_conns)
+
+
+def _merge_match(
+    matches: dict[str, HomeAssistantDeviceMatch],
+    match: HomeAssistantDeviceMatch,
+) -> None:
+    """Insert or upgrade a match, preferring the one with more matched identifiers."""
+    existing = matches.get(match.attached_device_key)
+    if existing is None:
+        matches[match.attached_device_key] = match
+        return
+
+    if existing.netbox_device_id == match.netbox_device_id:
+        if len(match.matched_identifiers) > len(existing.matched_identifiers):
+            matches[match.attached_device_key] = match
+        return
+
+    _LOGGER.warning(
+        "Skipping conflicting NetBox matches for Home Assistant device key %s: %s vs %s",
+        match.attached_device_key,
+        existing.netbox_device_id,
+        match.netbox_device_id,
+    )
+
+
 def _match_device(
     device_entry: dr.DeviceEntry,
     inventory: NetBoxInventory,
@@ -418,81 +484,43 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
         device_registry = dr.async_get(self.hass)
         matches: dict[str, HomeAssistantDeviceMatch] = {}
         attached_devices: dict[str, dr.DeviceEntry] = {}
+        enable_weak = self.config_entry.options.get(
+            CONF_ENABLE_WEAK_MATCHING,
+            DEFAULT_ENABLE_WEAK_MATCHING,
+        )
 
+        # Fast path: match using identifiers already in the HA device registry.
+        # Collect devices with Cast/Matter identifiers for the parallel slow path.
+        needs_slow_path: list[dr.DeviceEntry] = []
         for device_entry in device_registry.devices.values():
             attached_devices[_get_attached_device_key_for_entry(device_entry)] = device_entry
-            enable_weak = self.config_entry.options.get(
-                CONF_ENABLE_WEAK_MATCHING,
-                DEFAULT_ENABLE_WEAK_MATCHING,
-            )
-
-            # Fast path: try matching with the identifiers/connections HA already knows.
             match = _match_device(device_entry, inventory, enable_weak_matching=enable_weak)
+            if match is not None:
+                _merge_match(matches, match)
+            elif _needs_arp_resolution(device_entry):
+                needs_slow_path.append(device_entry)
 
-            if match is None:
-                # Slow path: augment with ARP-resolved MACs for integrations that
-                # communicate with WiFi devices but don't expose a MAC in the registry.
-                # Only runs when the fast path failed, so the subprocess cost is paid
-                # only for genuinely unmatched devices.
-                #
-                # MACs gathered here are also stored as extra_connections so that
-                # entity.DeviceInfo declares them; HA's device registry then merges
-                # device entries from different integrations for the same physical device
-                # (e.g., Cast + Android TV Remote both representing one Chromecast).
-                extra_ids: set[str] = set()
-                extra_conns: list[RegistryEntry] = []
-
-                for entry in device_entry.identifiers:
-                    if not isinstance(entry, (list, tuple)) or len(entry) < 2:
-                        continue
-                    if entry[0] != "matter":
-                        continue
-                    node_id = _parse_matter_node_id(entry[1])
-                    if node_id is None:
-                        continue
-                    mac = await _async_get_matter_mac(self.hass, node_id)
-                    if mac:
-                        extra_ids.add(mac)
-                        extra_conns.append(("mac", mac))
-                    break
-
-                for entry in device_entry.identifiers:
-                    if not isinstance(entry, (list, tuple)) or len(entry) < 2:
-                        continue
-                    if entry[0] != "cast":
-                        continue
-                    mac = await _async_get_cast_mac(self.hass, str(entry[1]))
-                    if mac:
-                        extra_ids.add(mac)
-                        extra_conns.append(("mac", mac))
-                    break
-
-                if extra_ids:
-                    match = _match_device(
-                        device_entry,
-                        inventory,
-                        enable_weak_matching=enable_weak,
-                        extra_identifiers=extra_ids,
-                        extra_connections=tuple(extra_conns),
-                    )
-            if match is None:
-                continue
-            existing_match = matches.get(match.attached_device_key)
-            if existing_match is None:
-                matches[match.attached_device_key] = match
-                continue
-
-            if existing_match.netbox_device_id == match.netbox_device_id:
-                if len(match.matched_identifiers) > len(existing_match.matched_identifiers):
-                    matches[match.attached_device_key] = match
-                continue
-
-            _LOGGER.warning(
-                "Skipping conflicting NetBox matches for Home Assistant device key %s: %s vs %s",
-                match.attached_device_key,
-                existing_match.netbox_device_id,
-                match.netbox_device_id,
+        # Slow path: ARP-resolve MACs for Cast/Matter devices concurrently.
+        # MACs gathered here are also stored as extra_connections so that
+        # entity.DeviceInfo declares them; HA's device registry then merges
+        # device entries from different integrations for the same physical device
+        # (e.g., Cast + Android TV Remote both representing one Chromecast).
+        if needs_slow_path:
+            resolved = await asyncio.gather(
+                *[_async_resolve_extra_ids(self.hass, d) for d in needs_slow_path]
             )
+            for device_entry, (extra_ids, extra_conns) in zip(needs_slow_path, resolved):
+                if not extra_ids:
+                    continue
+                match = _match_device(
+                    device_entry,
+                    inventory,
+                    enable_weak_matching=enable_weak,
+                    extra_identifiers=extra_ids,
+                    extra_connections=extra_conns,
+                )
+                if match is not None:
+                    _merge_match(matches, match)
 
         for attached_device_key, netbox_device_id in (
             self.config_entry.options.get(CONF_MANUAL_OVERRIDES, {}) or {}

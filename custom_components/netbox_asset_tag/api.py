@@ -250,7 +250,8 @@ class NetBoxApiClient:
     async def _async_paginate(self, path: str) -> list[dict[str, Any]]:
         """Return all records from one paginated API endpoint."""
         results: list[dict[str, Any]] = []
-        next_url: str | None = f"{path}?limit={API_PAGE_SIZE}"
+        sep = "&" if "?" in path else "?"
+        next_url: str | None = f"{path}{sep}limit={API_PAGE_SIZE}"
 
         while next_url:
             payload = await self._async_get_json(next_url)
