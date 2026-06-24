@@ -42,7 +42,7 @@ async def async_setup_entry(
             DEFAULT_WRITE_ASSET_TAG_TO_DEVICES,
         )
 
-        for attached_device_key, match in coordinator.data.items():
+        for attached_device_key, match in (coordinator.data or {}).items():
             sync_entity_unique_id = get_sync_button_unique_id(
                 config_entry.entry_id,
                 attached_device_key,

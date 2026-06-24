@@ -39,7 +39,7 @@ async def async_setup_entry(
         current_unique_ids: set[str] = set()
         new_entities: list[NetBoxAssetTagSensor] = []
 
-        for attached_device_key, match in coordinator.data.items():
+        for attached_device_key, match in (coordinator.data or {}).items():
             entity_unique_id = get_asset_tag_unique_id(
                 config_entry.entry_id,
                 attached_device_key,
