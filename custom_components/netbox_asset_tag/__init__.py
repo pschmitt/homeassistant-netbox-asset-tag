@@ -52,7 +52,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     }
 
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
-    async_cleanup_registry(hass, config_entry, coordinator.data or {})
+    # The first refresh now runs in the background, so coordinator.data is
+    # normally empty at this point. Only clean up when data is already
+    # available -- cleaning up against an empty match set would evict every
+    # existing asset-tag entity. The cleanup listener registered below re-runs
+    # cleanup once the background refresh has populated coordinator.data.
+    if coordinator.data:
+        async_cleanup_registry(hass, config_entry, coordinator.data)
     await async_register_services(hass)
 
     @callback
