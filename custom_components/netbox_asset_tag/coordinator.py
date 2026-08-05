@@ -501,10 +501,8 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
                 needs_slow_path.append(device_entry)
 
         # Slow path: ARP-resolve MACs for Cast/Matter devices concurrently.
-        # MACs gathered here are also stored as extra_connections so that
-        # entity.DeviceInfo declares them; HA's device registry then merges
-        # device entries from different integrations for the same physical device
-        # (e.g., Cast + Android TV Remote both representing one Chromecast).
+        # MACs gathered here extend the identifier set used to match the HA
+        # device to the right NetBox inventory entry below.
         if needs_slow_path:
             resolved = await asyncio.gather(
                 *[_async_resolve_extra_ids(self.hass, d) for d in needs_slow_path]
@@ -559,6 +557,23 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
                 match_methods=("manual_override",),
                 weak_match=False,
                 manual_override=True,
+            )
+
+        # Enrich the matched device's serial number directly via the
+        # registry when the HA device has none yet. This used to be done by
+        # returning serial_number in the entity's DeviceInfo, relying on it
+        # being merged into the shared device entry; a device now belongs to
+        # a single config entry, so we write it explicitly by device_id
+        # instead (HA Core 2026.8, "single config entry per device").
+        for match in matches.values():
+            if not match.netbox_serial:
+                continue
+            device_entry = device_registry.async_get(match.ha_device_id)
+            if device_entry is None or device_entry.serial_number:
+                continue
+            device_registry.async_update_device(
+                match.ha_device_id,
+                serial_number=match.netbox_serial,
             )
 
         return matches

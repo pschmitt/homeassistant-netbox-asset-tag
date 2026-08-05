@@ -142,8 +142,8 @@ class HomeAssistantDeviceMatch:
     ha_identifiers: tuple[RegistryEntry, ...]
     ha_connections: tuple[RegistryEntry, ...]
     # Connections gathered during slow-path matching (e.g., ARP-resolved MACs).
-    # Included in DeviceInfo so HA merges device registry entries for the same
-    # physical device that appear under multiple integrations.
+    # No longer used to attach to the HA device (see entity.py) since a
+    # device now belongs to a single config entry; kept for diagnostics.
     extra_connections: tuple[RegistryEntry, ...]
     netbox_device_id: int
     netbox_serial: str | None

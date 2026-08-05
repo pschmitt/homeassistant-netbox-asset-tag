@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import NetBoxAssetTagCoordinator
@@ -25,6 +22,17 @@ class NetBoxAssetTagEntity(CoordinatorEntity[NetBoxAssetTagCoordinator]):
         """Initialize the entity."""
         super().__init__(coordinator)
         self._attached_device_key = attached_device_key
+        # Link directly to the matched device instead of copying its
+        # identifiers/connections into DeviceInfo: a device now belongs to a
+        # single config entry and no longer merges across integrations that
+        # share identifiers (HA Core 2026.8, "single config entry per
+        # device"). Serial-number enrichment moved to the coordinator, which
+        # now writes it via device_registry.async_update_device directly.
+        match = self.matched_device
+        if match is not None:
+            self.device_entry = dr.async_get(coordinator.hass).async_get(
+                match.ha_device_id
+            )
 
     @property
     def matched_device(self) -> HomeAssistantDeviceMatch | None:
@@ -35,34 +43,3 @@ class NetBoxAssetTagEntity(CoordinatorEntity[NetBoxAssetTagCoordinator]):
     def available(self) -> bool:
         """Return whether the entity has current match data."""
         return self.coordinator.last_update_success and self.matched_device is not None
-
-    @property
-    def device_info(self) -> DeviceInfo | None:
-        """Return device information for an existing Home Assistant device."""
-        match = self.matched_device
-        if match is None:
-            return None
-
-        info: dict[str, Any] = {}
-        # Include all identifiers regardless of tuple length — some integrations
-        # (e.g. rfxtrx) register non-standard multi-element identifier tuples.
-        # HA matches on tuple equality so longer tuples work correctly.
-        identifiers = set(match.ha_identifiers)
-        connections = {entry for entry in match.ha_connections if len(entry) == 2}
-        connections |= {entry for entry in match.extra_connections if len(entry) == 2}
-        if identifiers:
-            info["identifiers"] = identifiers
-        if connections:
-            info["connections"] = connections
-        if not info:
-            return None
-
-        # Enrich with the NetBox serial when the HA device has none yet, so it
-        # shows up in the device card and can help HA merge device entries across
-        # integrations that report the same hardware serial.
-        if match.netbox_serial:
-            device_entry = dr.async_get(self.hass).async_get(match.ha_device_id)
-            if device_entry is None or not device_entry.serial_number:
-                info["serial_number"] = match.netbox_serial
-
-        return DeviceInfo(**info)
