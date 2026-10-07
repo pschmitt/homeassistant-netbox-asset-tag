@@ -159,10 +159,7 @@ async def async_remove_config_entry_device(
     still_matched = any(
         match.ha_device_id == device_entry.id for match in matches.values()
     )
-    backed_by_other_integration = any(
-        entry_id != config_entry.entry_id
-        for entry_id in device_entry.config_entries
-    )
+    backed_by_other_integration = device_entry.config_entry_id != config_entry.entry_id
     return not (still_matched and backed_by_other_integration)
 
 

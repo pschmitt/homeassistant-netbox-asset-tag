@@ -456,7 +456,7 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
         )
 
         sortable_options: list[tuple[bool, str, SelectOptionDict]] = []
-        for device_entry in device_registry.devices.values():
+        for device_entry in device_registry.devices:
             if device_entry.entry_type is not None:
                 continue
 
@@ -514,7 +514,7 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
         area_registry = ar.async_get(self.hass)
         labels_by_key: dict[str, str] = {}
 
-        for device_entry in device_registry.devices.values():
+        for device_entry in device_registry.devices:
             frozen_identifiers = freeze_registry_entries(device_entry.identifiers)
             frozen_connections = freeze_registry_entries(device_entry.connections)
             attached_device_key = get_attached_device_key(

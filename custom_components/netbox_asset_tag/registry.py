@@ -70,7 +70,7 @@ def async_cleanup_registry(
         match.ha_device_id
         for match in matches.values()
         if (dev := device_registry.async_get(match.ha_device_id)) is not None
-        and dev.config_entries <= {config_entry.entry_id}
+        and dev.config_entry_id == config_entry.entry_id
     }
 
     for entity_entry in er.async_entries_for_config_entry(

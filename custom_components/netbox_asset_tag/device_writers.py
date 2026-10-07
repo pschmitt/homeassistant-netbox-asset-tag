@@ -67,14 +67,10 @@ def device_supports_asset_tag_write(
     if device_entry is None:
         return False
 
-    for entry_id in device_entry.config_entries:
-        config_entry = hass.config_entries.async_get_entry(entry_id)
-        if config_entry is None:
-            continue
-        if _is_supported_shelly_config_entry(config_entry):
-            return True
-
-    return False
+    config_entry = hass.config_entries.async_get_entry(device_entry.config_entry_id)
+    return config_entry is not None and _is_supported_shelly_config_entry(
+        config_entry
+    )
 
 
 async def async_write_asset_tag_to_device(

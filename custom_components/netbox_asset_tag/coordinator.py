@@ -492,7 +492,7 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
         # Fast path: match using identifiers already in the HA device registry.
         # Collect devices with Cast/Matter identifiers for the parallel slow path.
         needs_slow_path: list[dr.DeviceEntry] = []
-        for device_entry in device_registry.devices.values():
+        for device_entry in device_registry.devices:
             attached_devices[_get_attached_device_key_for_entry(device_entry)] = device_entry
             match = _match_device(device_entry, inventory, enable_weak_matching=enable_weak)
             if match is not None:
