@@ -466,6 +466,9 @@ class NetBoxAssetTagCoordinator(DataUpdateCoordinator[dict[str, HomeAssistantDev
             ),
         )
         self.client = client
+        # Set while a refresh requested during startup is waiting for HA to
+        # start (see async_request_refresh_when_started).
+        self.start_refresh_pending = False
 
     @property
     def server_url(self) -> str:

@@ -12,7 +12,7 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .api import NetBoxApiClient
-from .auto_sync import async_setup_auto_sync
+from .auto_sync import async_request_refresh_when_started, async_setup_auto_sync
 from .const import CONF_VERIFY_SSL, DOMAIN, PLATFORMS
 from .coordinator import NetBoxAssetTagCoordinator
 from .registry import async_cleanup_registry
@@ -87,10 +87,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
         @callback
         def _on_cast_discovered(_info: object) -> None:
-            config_entry.async_create_background_task(
-                hass,
-                coordinator.async_request_refresh(),
-                "netbox_asset_tag_cast_refresh",
+            async_request_refresh_when_started(
+                hass, config_entry, coordinator, "netbox_asset_tag_cast_refresh"
             )
 
         config_entry.async_on_unload(
@@ -101,10 +99,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     def _on_component_loaded(event: Event) -> None:
         component = event.data.get("component")
         if component == "matter":
-            config_entry.async_create_background_task(
-                hass,
-                coordinator.async_request_refresh(),
-                "netbox_asset_tag_matter_refresh",
+            async_request_refresh_when_started(
+                hass, config_entry, coordinator, "netbox_asset_tag_matter_refresh"
             )
         elif component == "cast":
             _subscribe_cast_discovery()
@@ -118,10 +114,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     if "cast" in hass.config.components:
         _subscribe_cast_discovery()
         # Trigger a refresh so already-discovered Cast devices get ARP-matched.
-        config_entry.async_create_background_task(
-            hass,
-            coordinator.async_request_refresh(),
-            "netbox_asset_tag_cast_initial_refresh",
+        async_request_refresh_when_started(
+            hass, config_entry, coordinator, "netbox_asset_tag_cast_initial_refresh"
         )
 
     return True

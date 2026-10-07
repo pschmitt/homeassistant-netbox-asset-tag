@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import CoreState, Event, HomeAssistant, callback
+from homeassistant.helpers.start import async_at_started
 
 from .const import CONF_AUTO_SYNC, DEFAULT_AUTO_SYNC, DOMAIN, SERVICE_SYNC_TO_NETBOX
 from .coordinator import NetBoxAssetTagCoordinator
@@ -18,6 +19,41 @@ _SYNC_WATCHED_FIELDS: frozenset[str] = frozenset(
 _MATCH_WATCHED_FIELDS: frozenset[str] = frozenset(
     {"connections", "identifiers", "serial_number"}
 )
+
+
+@callback
+def async_request_refresh_when_started(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    coordinator: NetBoxAssetTagCoordinator,
+    name: str,
+) -> None:
+    """Request a coordinator refresh, deferring it until Home Assistant started.
+
+    Device registry events, Cast discovery and component loads fire in bulk while
+    Home Assistant is still starting. Each request runs a full NetBox match (and
+    ARP resolution), and the debouncer's refresh is a tracked task that bootstrap
+    waits for, so doing this during startup delays it by several seconds. The
+    first refresh already covers the devices that exist at that point, so one
+    refresh after startup is enough to pick up everything that arrived since.
+    """
+    if hass.state is CoreState.running:
+        config_entry.async_create_background_task(
+            hass, coordinator.async_request_refresh(), name
+        )
+        return
+    if coordinator.start_refresh_pending:
+        return
+    coordinator.start_refresh_pending = True
+
+    @callback
+    def _refresh_after_start(_hass: HomeAssistant) -> None:
+        coordinator.start_refresh_pending = False
+        config_entry.async_create_background_task(
+            hass, coordinator.async_request_refresh(), name
+        )
+
+    config_entry.async_on_unload(async_at_started(hass, _refresh_after_start))
 
 
 @callback
@@ -45,9 +81,10 @@ def async_setup_auto_sync(
                 action,
                 device_id,
             )
-            config_entry.async_create_background_task(
+            async_request_refresh_when_started(
                 hass,
-                coordinator.async_request_refresh(),
+                config_entry,
+                coordinator,
                 f"netbox_asset_tag_device_match_refresh_{device_id or 'unknown'}",
             )
 
