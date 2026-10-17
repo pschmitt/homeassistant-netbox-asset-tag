@@ -68,9 +68,7 @@ def device_supports_asset_tag_write(
         return False
 
     config_entry = hass.config_entries.async_get_entry(device_entry.config_entry_id)
-    return config_entry is not None and _is_supported_shelly_config_entry(
-        config_entry
-    )
+    return config_entry is not None and _is_supported_shelly_config_entry(config_entry)
 
 
 async def async_write_asset_tag_to_device(
@@ -80,9 +78,7 @@ async def async_write_asset_tag_to_device(
 ) -> DeviceAssetTagWriteResult:
     """Write an asset tag to a compatible device."""
     if not device_supports_asset_tag_write(hass, device_id):
-        raise DeviceAssetTagWriterUnsupported(
-            "device has no compatible asset-tag writer backend"
-        )
+        raise DeviceAssetTagWriterUnsupported("device has no compatible asset-tag writer backend")
 
     try:
         await hass.services.async_call(

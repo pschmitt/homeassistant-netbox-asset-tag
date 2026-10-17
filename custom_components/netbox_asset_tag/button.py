@@ -28,9 +28,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up NetBox sync buttons from a config entry."""
-    coordinator: NetBoxAssetTagCoordinator = hass.data[DOMAIN][config_entry.entry_id][
-        "coordinator"
-    ]
+    coordinator: NetBoxAssetTagCoordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     known_entities: set[str] = set()
 
     @callback
@@ -85,9 +83,7 @@ async def async_setup_entry(
             async_add_entities(new_entities)
 
     async_add_missing_entities()
-    config_entry.async_on_unload(
-        coordinator.async_add_listener(async_add_missing_entities)
-    )
+    config_entry.async_on_unload(coordinator.async_add_listener(async_add_missing_entities))
 
 
 class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
@@ -118,13 +114,16 @@ class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
         if match is None:
             return
 
-        response = await self.hass.services.async_call(
-            DOMAIN,
-            SERVICE_SYNC_TO_NETBOX,
-            {"device_id": [match.ha_device_id]},
-            blocking=True,
-            return_response=True,
-        ) or {}
+        response = (
+            await self.hass.services.async_call(
+                DOMAIN,
+                SERVICE_SYNC_TO_NETBOX,
+                {"device_id": [match.ha_device_id]},
+                blocking=True,
+                return_response=True,
+            )
+            or {}
+        )
 
         synced = response.get("synced", [])
         errors = response.get("errors", [])
@@ -200,7 +199,9 @@ class NetBoxSyncButton(NetBoxAssetTagEntity, ButtonEntity):
             lines = ["Nothing to sync"]
 
         nb_icon = "https://raw.githubusercontent.com/netbox-community/netbox/main/netbox/project-static/img/netbox_icon.svg"
-        lines.append(f'<img src="{nb_icon}" width="16" height="16"> [Open in NetBox]({match.netbox_url})')
+        lines.append(
+            f'<img src="{nb_icon}" width="16" height="16"> [Open in NetBox]({match.netbox_url})'
+        )
 
         pn_create(
             self.hass,
@@ -238,13 +239,16 @@ class NetBoxDeviceWriteButton(NetBoxAssetTagEntity, ButtonEntity):
         if match is None:
             return
 
-        response = await self.hass.services.async_call(
-            DOMAIN,
-            SERVICE_WRITE_ASSET_TAG_TO_DEVICE,
-            {"device_id": [match.ha_device_id]},
-            blocking=True,
-            return_response=True,
-        ) or {}
+        response = (
+            await self.hass.services.async_call(
+                DOMAIN,
+                SERVICE_WRITE_ASSET_TAG_TO_DEVICE,
+                {"device_id": [match.ha_device_id]},
+                blocking=True,
+                return_response=True,
+            )
+            or {}
+        )
 
         lines: list[str] = []
         for entry in response.get("written", []):

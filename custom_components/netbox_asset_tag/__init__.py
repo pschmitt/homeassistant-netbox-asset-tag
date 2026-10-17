@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -17,6 +18,8 @@ from .const import CONF_VERIFY_SSL, DOMAIN, PLATFORMS
 from .coordinator import NetBoxAssetTagCoordinator
 from .registry import async_cleanup_registry
 from .services import async_register_services, async_unregister_services
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -105,9 +108,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         elif component == "cast":
             _subscribe_cast_discovery()
 
-    config_entry.async_on_unload(
-        hass.bus.async_listen("component_loaded", _on_component_loaded)
-    )
+    config_entry.async_on_unload(hass.bus.async_listen("component_loaded", _on_component_loaded))
 
     # If cast is already loaded (it starts before custom integrations), subscribe now
     # so we don't miss SIGNAL_CAST_DISCOVERED signals that fire after our setup.
@@ -150,9 +151,7 @@ async def async_remove_config_entry_device(
     entry_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id)
     coordinator = entry_data.get("coordinator") if entry_data else None
     matches = getattr(coordinator, "data", None) or {}
-    still_matched = any(
-        match.ha_device_id == device_entry.id for match in matches.values()
-    )
+    still_matched = any(match.ha_device_id == device_entry.id for match in matches.values())
     backed_by_other_integration = device_entry.config_entry_id != config_entry.entry_id
     return not (still_matched and backed_by_other_integration)
 
@@ -160,4 +159,3 @@ async def async_remove_config_entry_device(
 async def async_update_listener(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
     """Reload the integration after options changes."""
     await hass.config_entries.async_reload(config_entry.entry_id)
-

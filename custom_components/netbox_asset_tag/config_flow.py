@@ -7,12 +7,12 @@ from typing import Any
 from urllib.parse import urlparse
 
 import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_NAME, CONF_SCAN_INTERVAL, CONF_TOKEN, CONF_URL
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
-from homeassistant.helpers import area_registry as ar, device_registry as dr
 from homeassistant.helpers.selector import (
     BooleanSelector,
     NumberSelector,
@@ -30,9 +30,9 @@ from homeassistant.helpers.selector import (
 from .api import NetBoxApiClient, normalize_url
 from .const import (
     CONF_AUTO_SYNC,
+    CONF_ENABLE_WEAK_MATCHING,
     CONF_HA_URL_FIELD,
     CONF_MANUAL_OVERRIDES,
-    CONF_ENABLE_WEAK_MATCHING,
     CONF_SYNC_FIELDS,
     CONF_VERIFY_SSL,
     CONF_WRITE_ASSET_TAG_TO_DEVICES,
@@ -103,9 +103,7 @@ class NetBoxAssetTagConfigFlow(ConfigFlow, domain=DOMAIN):
             except NetBoxApiError:
                 errors["base"] = "cannot_connect"
             except Exception:  # noqa: BLE001
-                _LOGGER.exception(
-                    "Unexpected exception while validating NetBox Asset Tag config"
-                )
+                _LOGGER.exception("Unexpected exception while validating NetBox Asset Tag config")
                 errors["base"] = "unknown"
             else:
                 await self.async_set_unique_id(info["unique_id"])
@@ -170,17 +168,12 @@ class NetBoxAssetTagConfigFlow(ConfigFlow, domain=DOMAIN):
             except NetBoxApiError:
                 errors["base"] = "cannot_connect"
             except Exception:  # noqa: BLE001
-                _LOGGER.exception(
-                    "Unexpected exception while validating NetBox Asset Tag config"
-                )
+                _LOGGER.exception("Unexpected exception while validating NetBox Asset Tag config")
                 errors["base"] = "unknown"
             else:
                 new_unique_id = info["unique_id"]
                 for other in self._async_current_entries():
-                    if (
-                        other.entry_id != entry.entry_id
-                        and other.unique_id == new_unique_id
-                    ):
+                    if other.entry_id != entry.entry_id and other.unique_id == new_unique_id:
                         return self.async_abort(reason="already_configured")
                 return self.async_update_reload_and_abort(
                     entry,
@@ -193,9 +186,7 @@ class NetBoxAssetTagConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="reconfigure",
             data_schema=vol.Schema(
                 {
-                    vol.Required(
-                        CONF_URL, default=defaults.get(CONF_URL, "")
-                    ): TextSelector(),
+                    vol.Required(CONF_URL, default=defaults.get(CONF_URL, "")): TextSelector(),
                     vol.Optional(CONF_TOKEN): TextSelector(
                         TextSelectorConfig(type=TextSelectorType.PASSWORD)
                     ),
@@ -295,11 +286,23 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
                     ): SelectSelector(
                         SelectSelectorConfig(
                             options=[
-                                SelectOptionDict(value=SYNC_FIELD_STATUS, label="Status (active / inventory)"),
-                                SelectOptionDict(value=SYNC_FIELD_LOCATION, label="Location (from HA area)"),
-                                SelectOptionDict(value=SYNC_FIELD_NAME, label="Name (from HA device name)"),
-                                SelectOptionDict(value=SYNC_FIELD_HA_URL, label="HA device URL (NetBox custom field)"),
-                                SelectOptionDict(value=SYNC_FIELD_SERIAL, label="Serial number (only when HA reports one)"),
+                                SelectOptionDict(
+                                    value=SYNC_FIELD_STATUS, label="Status (active / inventory)"
+                                ),
+                                SelectOptionDict(
+                                    value=SYNC_FIELD_LOCATION, label="Location (from HA area)"
+                                ),
+                                SelectOptionDict(
+                                    value=SYNC_FIELD_NAME, label="Name (from HA device name)"
+                                ),
+                                SelectOptionDict(
+                                    value=SYNC_FIELD_HA_URL,
+                                    label="HA device URL (NetBox custom field)",
+                                ),
+                                SelectOptionDict(
+                                    value=SYNC_FIELD_SERIAL,
+                                    label="Serial number (only when HA reports one)",
+                                ),
                             ],
                             multiple=True,
                             mode=SelectSelectorMode.LIST,
@@ -362,7 +365,9 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
         """Choose the NetBox target for a manual override."""
         if user_input is not None:
             overrides = self._get_manual_overrides()
-            overrides[self._selected_attached_device_key or ""] = int(user_input["netbox_device_id"])
+            overrides[self._selected_attached_device_key or ""] = int(
+                user_input["netbox_device_id"]
+            )
             self._options[CONF_MANUAL_OVERRIDES] = overrides
             return self.async_create_entry(title="", data=self._options)
 
@@ -424,9 +429,7 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
             return self._inventory
 
         client: NetBoxApiClient | None = (
-            self.hass.data.get(DOMAIN, {})
-            .get(self._config_entry.entry_id, {})
-            .get("client")
+            self.hass.data.get(DOMAIN, {}).get(self._config_entry.entry_id, {}).get("client")
         )
         if client is None:
             session = async_create_clientsession(
@@ -447,13 +450,9 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
         device_registry = dr.async_get(self.hass)
         area_registry = ar.async_get(self.hass)
         coordinator = (
-            self.hass.data.get(DOMAIN, {})
-            .get(self._config_entry.entry_id, {})
-            .get("coordinator")
+            self.hass.data.get(DOMAIN, {}).get(self._config_entry.entry_id, {}).get("coordinator")
         )
-        matched_device_keys = (
-            set(coordinator.data) if coordinator and coordinator.data else set()
-        )
+        matched_device_keys = set(coordinator.data) if coordinator and coordinator.data else set()
 
         sortable_options: list[tuple[bool, str, SelectOptionDict]] = []
         for device_entry in device_registry.devices:
@@ -536,7 +535,9 @@ class NetBoxAssetTagOptionsFlow(OptionsFlow):
             netbox_device = inventory.devices.get(netbox_device_id)
             ha_label = labels_by_key.get(attached_device_key, attached_device_key)
             netbox_label = (
-                netbox_device.display if netbox_device is not None else f"NetBox device {netbox_device_id}"
+                netbox_device.display
+                if netbox_device is not None
+                else f"NetBox device {netbox_device_id}"
             )
             options.append(
                 SelectOptionDict(

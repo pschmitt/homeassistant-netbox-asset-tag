@@ -9,4 +9,3 @@ class NetBoxApiError(Exception):
 
 class NetBoxAuthenticationError(NetBoxApiError):
     """Raised when NetBox rejects the supplied credentials."""
-

@@ -13,12 +13,8 @@ from .coordinator import NetBoxAssetTagCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-_SYNC_WATCHED_FIELDS: frozenset[str] = frozenset(
-    {"area_id", "disabled_by", "name", "name_by_user"}
-)
-_MATCH_WATCHED_FIELDS: frozenset[str] = frozenset(
-    {"connections", "identifiers", "serial_number"}
-)
+_SYNC_WATCHED_FIELDS: frozenset[str] = frozenset({"area_id", "disabled_by", "name", "name_by_user"})
+_MATCH_WATCHED_FIELDS: frozenset[str] = frozenset({"connections", "identifiers", "serial_number"})
 
 
 @callback
@@ -38,9 +34,7 @@ def async_request_refresh_when_started(
     refresh after startup is enough to pick up everything that arrived since.
     """
     if hass.state is CoreState.running:
-        config_entry.async_create_background_task(
-            hass, coordinator.async_request_refresh(), name
-        )
+        config_entry.async_create_background_task(hass, coordinator.async_request_refresh(), name)
         return
     if coordinator.start_refresh_pending:
         return
@@ -49,9 +43,7 @@ def async_request_refresh_when_started(
     @callback
     def _refresh_after_start(_hass: HomeAssistant) -> None:
         coordinator.start_refresh_pending = False
-        config_entry.async_create_background_task(
-            hass, coordinator.async_request_refresh(), name
-        )
+        config_entry.async_create_background_task(hass, coordinator.async_request_refresh(), name)
 
     config_entry.async_on_unload(async_at_started(hass, _refresh_after_start))
 
@@ -148,6 +140,4 @@ def async_setup_auto_sync(
             _handle_device_registry_updated,
         )
     )
-    config_entry.async_on_unload(
-        coordinator.async_add_listener(_handle_coordinator_refresh)
-    )
+    config_entry.async_on_unload(coordinator.async_add_listener(_handle_coordinator_refresh))

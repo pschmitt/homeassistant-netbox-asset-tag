@@ -10,8 +10,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     ATTR_MANUAL_OVERRIDE,
-    ATTR_MATCHED_IDENTIFIERS,
     ATTR_MATCH_METHODS,
+    ATTR_MATCHED_IDENTIFIERS,
     ATTR_NETBOX_DEVICE_ID,
     ATTR_NETBOX_URL,
     ATTR_PRIMARY_MATCH_METHOD,
@@ -29,9 +29,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up NetBox Asset Tag sensors from a config entry."""
-    coordinator: NetBoxAssetTagCoordinator = hass.data[DOMAIN][config_entry.entry_id][
-        "coordinator"
-    ]
+    coordinator: NetBoxAssetTagCoordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     known_entities: set[str] = set()
 
     @callback
@@ -64,9 +62,7 @@ async def async_setup_entry(
             async_add_entities(new_entities)
 
     async_add_missing_entities()
-    config_entry.async_on_unload(
-        coordinator.async_add_listener(async_add_missing_entities)
-    )
+    config_entry.async_on_unload(coordinator.async_add_listener(async_add_missing_entities))
 
 
 class NetBoxAssetTagSensor(NetBoxAssetTagEntity, SensorEntity):

@@ -1,6 +1,11 @@
 {
   "domain": "netbox_asset_tag",
   "name": "NetBox Asset Tag",
+  "after_dependencies": [
+    "cast",
+    "matter",
+    "shelly"
+  ],
   "codeowners": [
     "@pschmitt"
   ],
@@ -14,4 +19,3 @@
   ],
   "version": "0.1.0"
 }
-

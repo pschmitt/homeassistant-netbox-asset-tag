@@ -22,11 +22,10 @@ from .exceptions import NetBoxApiError, NetBoxAuthenticationError
 from .models import (
     NetBoxDeviceRecord,
     NetBoxInventory,
-    parse_device_identifiers,
     normalize_identifier,
     normalize_serial,
+    parse_device_identifiers,
 )
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,9 +57,7 @@ class NetBoxApiClient:
         """GET one NetBox device by ID."""
         return await self._async_get_json(f"api/dcim/devices/{device_id}/")
 
-    async def async_patch_device(
-        self, device_id: int, payload: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def async_patch_device(self, device_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         """PATCH a NetBox device with the given fields."""
         url = urljoin(f"{self.base_url}/", f"api/dcim/devices/{device_id}/")
         headers = {
@@ -76,9 +73,7 @@ class NetBoxApiClient:
                 timeout=DEFAULT_REQUEST_TIMEOUT,
             ) as response:
                 if response.status in {401, 403}:
-                    raise NetBoxAuthenticationError(
-                        "NetBox rejected the supplied API token"
-                    )
+                    raise NetBoxAuthenticationError("NetBox rejected the supplied API token")
                 if response.status >= 400:
                     body = await response.text()
                     raise NetBoxApiError(
@@ -97,9 +92,11 @@ class NetBoxApiClient:
 
     async def async_fetch_inventory(self) -> NetBoxInventory:
         """Fetch and normalize NetBox devices and interfaces."""
-        devices_payload, interfaces_payload, mac_addresses_payload = (
-            await self._async_fetch_inventory_payloads()
-        )
+        (
+            devices_payload,
+            interfaces_payload,
+            mac_addresses_payload,
+        ) = await self._async_fetch_inventory_payloads()
 
         devices: dict[int, NetBoxDeviceRecord] = {}
         candidates: dict[str, set[int]] = defaultdict(set)
@@ -287,13 +284,9 @@ class NetBoxApiClient:
                 timeout=DEFAULT_REQUEST_TIMEOUT,
             ) as response:
                 if response.status in {401, 403}:
-                    raise NetBoxAuthenticationError(
-                        "NetBox rejected the supplied API token"
-                    )
+                    raise NetBoxAuthenticationError("NetBox rejected the supplied API token")
                 if response.status >= 400:
-                    raise NetBoxApiError(
-                        f"NetBox request failed with status {response.status}"
-                    )
+                    raise NetBoxApiError(f"NetBox request failed with status {response.status}")
                 payload = await response.json()
         except (aiohttp.ClientError, TimeoutError, ValueError) as err:
             raise NetBoxApiError("Failed to reach NetBox") from err

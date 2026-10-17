@@ -7,7 +7,6 @@ import re
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
@@ -240,7 +239,11 @@ async def async_register_services(hass: HomeAssistant) -> None:
                             "changes": changes_flat,
                             **({"ha_area": area_name} if area_name else {}),
                             **({"location_name": location_name} if location_name else {}),
-                            **({"old_location_name": old_location_name} if old_location_name else {}),
+                            **(
+                                {"old_location_name": old_location_name}
+                                if old_location_name
+                                else {}
+                            ),
                             **(
                                 {"location_unmatched": True}
                                 if area_name and location_id is None

@@ -5,9 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import Any
 
-RegistryEntry: TypeAlias = tuple[str, ...]
+type RegistryEntry = tuple[str, ...]
 
 
 def normalize_identifier(value: str | None) -> str | None:
@@ -42,7 +42,9 @@ def normalize_serial(value: str | None) -> str | None:
     if not value:
         return None
 
-    normalized = "".join(character for character in value.strip().upper() if not character.isspace())
+    normalized = "".join(
+        character for character in value.strip().upper() if not character.isspace()
+    )
     if not normalized:
         return None
     return normalized

@@ -30,9 +30,7 @@ class NetBoxAssetTagEntity(CoordinatorEntity[NetBoxAssetTagCoordinator]):
         # now writes it via device_registry.async_update_device directly.
         match = self.matched_device
         if match is not None:
-            self.device_entry = dr.async_get(coordinator.hass).async_get(
-                match.ha_device_id
-            )
+            self.device_entry = dr.async_get(coordinator.hass).async_get(match.ha_device_id)
 
     @property
     def matched_device(self) -> HomeAssistantDeviceMatch | None:

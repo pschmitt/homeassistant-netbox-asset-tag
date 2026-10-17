@@ -17,8 +17,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import NetBoxApiClient
 from .const import (
-    CONF_MANUAL_OVERRIDES,
     CONF_ENABLE_WEAK_MATCHING,
+    CONF_MANUAL_OVERRIDES,
     DEFAULT_ENABLE_WEAK_MATCHING,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -44,9 +44,7 @@ _SEPARATED_IDENTIFIER_PATTERNS = (
 )
 _SERIAL_TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,}")
 _WHOLE_IDENTIFIER_RE = re.compile(r"^[0-9A-Fa-f]{12}(?:[0-9A-Fa-f]{4})?$")
-_MATTER_NODE_ID_RE = re.compile(
-    r"^deviceid_[0-9A-Fa-f]+-([0-9A-Fa-f]+)-MatterNodeDevice$"
-)
+_MATTER_NODE_ID_RE = re.compile(r"^deviceid_[0-9A-Fa-f]+-([0-9A-Fa-f]+)-MatterNodeDevice$")
 
 
 def _extract_identifier_candidates(value: Any) -> set[str]:
@@ -164,7 +162,9 @@ def _build_match(
 
     return HomeAssistantDeviceMatch(
         ha_device_id=device_entry.id,
-        attached_device_key=get_attached_device_key(frozen_identifiers, frozen_connections, device_entry.id),
+        attached_device_key=get_attached_device_key(
+            frozen_identifiers, frozen_connections, device_entry.id
+        ),
         ha_device_name=device_entry.name_by_user or device_entry.name or device_entry.id,
         ha_identifiers=frozen_identifiers,
         ha_connections=frozen_connections,
@@ -275,7 +275,10 @@ async def _async_mac_from_ip(ip: str) -> str | None:
     """Resolve a MAC address from an IP via the system ARP neighbour table."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "ip", "neigh", "show", ip,
+            "ip",
+            "neigh",
+            "show",
+            ip,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )

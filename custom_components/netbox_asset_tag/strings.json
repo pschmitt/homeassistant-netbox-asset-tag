@@ -38,13 +38,7 @@
       "fields": {
         "device_id": {
           "name": "Devices",
-          "description": "One or more devices to sync. Leave empty to sync all coordinator-matched devices.",
-          "selector": {
-            "device": {
-              "integration": "netbox_asset_tag",
-              "multiple": true
-            }
-          }
+          "description": "One or more devices to sync. Leave empty to sync all coordinator-matched devices."
         }
       }
     },
@@ -54,13 +48,7 @@
       "fields": {
         "device_id": {
           "name": "Devices",
-          "description": "One or more devices to write to. Leave empty to write all coordinator-matched compatible devices.",
-          "selector": {
-            "device": {
-              "integration": "netbox_asset_tag",
-              "multiple": true
-            }
-          }
+          "description": "One or more devices to write to. Leave empty to write all coordinator-matched compatible devices."
         }
       }
     }

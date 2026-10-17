@@ -35,4 +35,3 @@ async def async_get_config_entry_diagnostics(
             for match in coordinator.data.values()
         ],
     }
-
