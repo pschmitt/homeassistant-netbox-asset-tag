@@ -52,9 +52,7 @@ ADD_JOURNAL_ENTRY_SERVICE_SCHEMA = vol.Schema(
     {
         vol.Required("device_id"): cv.string,
         vol.Required("comments"): vol.All(cv.string, vol.Length(min=1)),
-        vol.Optional("kind", default="info"): vol.In(
-            {"info", "success", "warning", "danger"}
-        ),
+        vol.Optional("kind", default="info"): vol.In({"info", "success", "warning", "danger"}),
     }
 )
 
