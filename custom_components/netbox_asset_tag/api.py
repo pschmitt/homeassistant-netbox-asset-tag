@@ -13,6 +13,7 @@ import aiohttp
 from .const import (
     API_DEVICES_PATH,
     API_INTERFACES_PATH,
+    API_JOURNAL_ENTRIES_PATH,
     API_LOCATIONS_PATH,
     API_MAC_ADDRESSES_PATH,
     API_PAGE_SIZE,
@@ -78,6 +79,41 @@ class NetBoxApiClient:
                     body = await response.text()
                     raise NetBoxApiError(
                         f"NetBox PATCH failed with status {response.status}: {body[:200]}"
+                    )
+                return await response.json()
+        except (aiohttp.ClientError, TimeoutError, ValueError) as err:
+            raise NetBoxApiError("Failed to reach NetBox") from err
+
+    async def async_create_device_journal_entry(
+        self, device_id: int, comments: str, kind: str
+    ) -> dict[str, Any]:
+        """Create a journal entry attached to one NetBox device."""
+        url = urljoin(f"{self.base_url}/", API_JOURNAL_ENTRIES_PATH.lstrip("/"))
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Token {self._token}",
+        }
+        payload = {
+            "assigned_object_type": "dcim.device",
+            "assigned_object_id": device_id,
+            "kind": kind,
+            "comments": comments,
+        }
+        try:
+            async with self._session.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=DEFAULT_REQUEST_TIMEOUT,
+            ) as response:
+                if response.status in {401, 403}:
+                    raise NetBoxAuthenticationError("NetBox rejected the supplied API token")
+                if response.status >= 400:
+                    body = await response.text()
+                    raise NetBoxApiError(
+                        f"NetBox journal entry creation failed with status "
+                        f"{response.status}: {body[:200]}"
                     )
                 return await response.json()
         except (aiohttp.ClientError, TimeoutError, ValueError) as err:

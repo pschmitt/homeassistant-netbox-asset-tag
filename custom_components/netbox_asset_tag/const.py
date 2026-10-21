@@ -49,9 +49,11 @@ API_DEVICES_PATH = "/api/dcim/devices/?asset_tag__empty=false"
 API_INTERFACES_PATH = "/api/dcim/interfaces/"
 API_LOCATIONS_PATH = "/api/dcim/locations/"
 API_MAC_ADDRESSES_PATH = "/api/dcim/mac-addresses/"
+API_JOURNAL_ENTRIES_PATH = "/api/extras/journal-entries/"
 
 SERVICE_SYNC_TO_NETBOX = "sync_to_netbox"
 SERVICE_WRITE_ASSET_TAG_TO_DEVICE = "write_asset_tag_to_device"
+SERVICE_ADD_JOURNAL_ENTRY = "add_journal_entry"
 
 ATTR_MATCHED_IDENTIFIERS = "matched_identifiers"
 ATTR_MATCH_METHODS = "match_methods"

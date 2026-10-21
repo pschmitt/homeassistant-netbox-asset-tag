@@ -51,6 +51,24 @@
           "description": "One or more devices to write to. Leave empty to write all coordinator-matched compatible devices."
         }
       }
+    },
+    "add_journal_entry": {
+      "name": "Add journal entry",
+      "description": "Add a journal entry to the NetBox device matched to a Home Assistant device.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "Home Assistant device matched to the NetBox device that should receive the journal entry."
+        },
+        "comments": {
+          "name": "Journal entry",
+          "description": "The text to add to the NetBox device journal."
+        },
+        "kind": {
+          "name": "Kind",
+          "description": "The journal entry type, used for its NetBox display styling."
+        }
+      }
     }
   },
   "options": {

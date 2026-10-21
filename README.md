@@ -52,10 +52,11 @@ The token must belong to a NetBox user (or group) that has the following object-
 | `dcim.interface` | `view` |
 | `dcim.macaddress` | `view` |
 | `dcim.location` | `view` |
+| `extras.journalentry` | `add` (only for the **Add journal entry** service) |
 
-`view` on `dcim.device`, `dcim.interface`, and `dcim.macaddress` is required for the coordinator to match Home Assistant devices against NetBox inventory. `view` on `dcim.location` is required to resolve area-to-location mappings for the sync service. `change` on `dcim.device` is required only for the **Sync to NetBox** service and button; omit it if you do not use that feature.
+`view` on `dcim.device`, `dcim.interface`, and `dcim.macaddress` is required for the coordinator to match Home Assistant devices against NetBox inventory. `view` on `dcim.location` is required to resolve area-to-location mappings for the sync service. `change` on `dcim.device` is required only for the **Sync to NetBox** service and button; `add` on `extras.journalentry` is required only for **Add journal entry**. Omit either permission if you do not use the related feature.
 
-> **Note:** As soon as any explicit object permission is assigned to a NetBox user, that user can only access objects covered by those permissions. If you assign fewer than the four rows above, the coordinator will fail to refresh and all entities will become unavailable.
+> **Note:** As soon as any explicit object permission is assigned to a NetBox user, that user can only access objects covered by those permissions. All four `view` permissions above are required for matching; the `change` and `add` permissions are optional and only needed for their respective write services.
 
 ## Configuration
 
@@ -136,6 +137,25 @@ errors:
   - ha_device_name: …
     error: …
 ```
+
+## Add journal entry service
+
+The `netbox_asset_tag.add_journal_entry` service creates a journal entry on the
+NetBox device matched to one Home Assistant device. The target is a single
+`device_id`, so an omitted target can never write to every matched device.
+
+```yaml
+action: netbox_asset_tag.add_journal_entry
+data:
+  device_id: <Home Assistant device ID>
+  comments: Washing machine tub clean completed.
+  kind: success
+```
+
+`kind` is optional and defaults to `info`; supported values are `info`,
+`success`, `warning`, and `danger`. The service returns the created NetBox
+journal entry ID, or an error if the device has no current NetBox match or the
+API request fails.
 
 ## Auto-sync
 

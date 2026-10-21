@@ -20,6 +20,7 @@ from .const import (
     DEFAULT_SYNC_FIELDS,
     DEFAULT_WRITE_ASSET_TAG_TO_DEVICES,
     DOMAIN,
+    SERVICE_ADD_JOURNAL_ENTRY,
     SERVICE_SYNC_TO_NETBOX,
     SERVICE_WRITE_ASSET_TAG_TO_DEVICE,
     SYNC_FIELD_HA_URL,
@@ -45,6 +46,15 @@ SYNC_SERVICE_SCHEMA = vol.Schema(
 WRITE_TO_DEVICE_SERVICE_SCHEMA = vol.Schema(
     {
         vol.Optional("device_id", default=[]): vol.All(cv.ensure_list, [cv.string]),
+    }
+)
+ADD_JOURNAL_ENTRY_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required("device_id"): cv.string,
+        vol.Required("comments"): vol.All(cv.string, vol.Length(min=1)),
+        vol.Optional("kind", default="info"): vol.In(
+            {"info", "success", "warning", "danger"}
+        ),
     }
 )
 
@@ -399,6 +409,92 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
         return {"written": written, "skipped": skipped, "errors": errors}
 
+    async def _handle_add_journal_entry(call: ServiceCall) -> ServiceResponse:
+        ha_device_id = call.data["device_id"]
+        comments = call.data["comments"]
+        kind = call.data.get("kind", "info")
+        device_reg = dr.async_get(hass)
+        device_entry = device_reg.async_get(ha_device_id)
+        ha_device_name = (
+            (device_entry.name_by_user or device_entry.name or ha_device_id)
+            if device_entry
+            else ha_device_id
+        )
+
+        for entry_data in hass.data.get(DOMAIN, {}).values():
+            if not isinstance(entry_data, dict):
+                continue
+            coordinator = entry_data.get("coordinator")
+            client = entry_data.get("client")
+            if coordinator is None or client is None or not coordinator.data:
+                continue
+
+            match = next(
+                (
+                    candidate
+                    for candidate in coordinator.data.values()
+                    if candidate.ha_device_id == ha_device_id
+                ),
+                None,
+            )
+            if match is None:
+                continue
+
+            try:
+                journal_entry = await client.async_create_device_journal_entry(
+                    match.netbox_device_id,
+                    comments,
+                    kind,
+                )
+            except NetBoxApiError as err:
+                _LOGGER.error(
+                    "Failed to add NetBox journal entry for %r (NetBox #%d): %s",
+                    ha_device_name,
+                    match.netbox_device_id,
+                    err,
+                )
+                return {
+                    "created": [],
+                    "errors": [
+                        {
+                            "ha_device_id": ha_device_id,
+                            "ha_device_name": ha_device_name,
+                            "netbox_device_id": match.netbox_device_id,
+                            "error": str(err),
+                        }
+                    ],
+                }
+
+            _LOGGER.info(
+                "Added NetBox journal entry for %r (NetBox #%d, journal #%s)",
+                ha_device_name,
+                match.netbox_device_id,
+                journal_entry.get("id", "unknown"),
+            )
+            return {
+                "created": [
+                    {
+                        "ha_device_id": ha_device_id,
+                        "ha_device_name": ha_device_name,
+                        "netbox_device_id": match.netbox_device_id,
+                        "journal_entry_id": journal_entry.get("id"),
+                        "kind": kind,
+                    }
+                ],
+                "errors": [],
+            }
+
+        return {
+            "created": [],
+            "errors": [
+                {
+                    "ha_device_id": ha_device_id,
+                    "ha_device_name": ha_device_name,
+                    "error": "no_coordinator_match",
+                }
+            ],
+        }
+
     if not hass.services.has_service(DOMAIN, SERVICE_SYNC_TO_NETBOX):
         hass.services.async_register(
             DOMAIN,
@@ -417,6 +513,15 @@ async def async_register_services(hass: HomeAssistant) -> None:
             supports_response=SupportsResponse.OPTIONAL,
         )
 
+    if not hass.services.has_service(DOMAIN, SERVICE_ADD_JOURNAL_ENTRY):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_ADD_JOURNAL_ENTRY,
+            _handle_add_journal_entry,
+            schema=ADD_JOURNAL_ENTRY_SERVICE_SCHEMA,
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+
 
 def async_unregister_services(hass: HomeAssistant) -> None:
     """Remove integration services when the last config entry is unloaded."""
@@ -426,3 +531,5 @@ def async_unregister_services(hass: HomeAssistant) -> None:
         hass.services.async_remove(DOMAIN, SERVICE_SYNC_TO_NETBOX)
     if hass.services.has_service(DOMAIN, SERVICE_WRITE_ASSET_TAG_TO_DEVICE):
         hass.services.async_remove(DOMAIN, SERVICE_WRITE_ASSET_TAG_TO_DEVICE)
+    if hass.services.has_service(DOMAIN, SERVICE_ADD_JOURNAL_ENTRY):
+        hass.services.async_remove(DOMAIN, SERVICE_ADD_JOURNAL_ENTRY)
