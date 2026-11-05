@@ -26,11 +26,11 @@ When multiple candidate identifiers point at different NetBox devices, the Home 
 
 ## Installation
 
-### HACS
+[![Open this integration in Home Assistant Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=pschmitt&repository=homeassistant-netbox-asset-tag&category=integration)
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=pschmitt&repository=homeassistant-netbox-asset-tag&category=integration)
+### Home Assistant Marketplace
 
-1. Click the badge above, or open HACS and add `https://github.com/pschmitt/homeassistant-netbox-asset-tag` as a custom repository of type **Integration**.
+1. Click the badge above to add this repository. For older installations, add `https://github.com/pschmitt/homeassistant-netbox-asset-tag` to HACS as a custom repository of type **Integration**.
 2. Install **NetBox Asset Tag**.
 3. Restart Home Assistant.
 
